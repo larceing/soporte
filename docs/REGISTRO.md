@@ -137,7 +137,7 @@ y abrir http://localhost:8081.
 - Cerrar al exterior el puerto 81 del panel del proxy (Docker se salta el cortafuegos).
 - Copias de seguridad automáticas de la base de datos del servidor.
 - Quitar el acceso público a la hoja de Google y a la carpeta de PDF de Drive.
-- Portafolio: crear `hola@luiscontacto03.com` en Cloudflare Email Routing (es el correo de contacto
+- Portafolio: crear `info@luiscontacto03.com` en Cloudflare Email Routing (es el correo de contacto
   publicado) y añadir una foto propia.
 - Veri\*Factu: confirmar requisitos con el gestor antes de emitir facturas reales desde el portal.
 - El correo de avisos de MantisBT está desactivado en producción (el portal envía los suyos).
