@@ -14,7 +14,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Proxy y HTTPS | Nginx Proxy Manager en `/opt/apps/proxy` | Host `soporte.luiscontacto03.com` → `incidencias-web:80`, certificado Let's Encrypt |
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
 | Envío de correo | Resend, región Irlanda | Remitente `soporte@luiscontacto03.com` |
-| Recepción de correo | Cloudflare Email Routing | `soporte@luiscontacto03.com` → Gmail personal |
+| Recepción de correo | Cloudflare Email Routing | `soporte@` e `info@luiscontacto03.com` → Gmail personal. `info@` es el contacto del portafolio |
 | Web portafolio | https://luiscontacto03.com | Contenedor `portafolio-web` (nginx), carpeta `/opt/apps/portafolio`. Código en `DESARROLLO\web-portafolio`, repositorio aparte |
 | Entorno local | http://localhost:8090 (portal), :8080 (MantisBT), :8025 (correo de pruebas) | `docker compose up -d` en esta carpeta |
 
@@ -137,7 +137,5 @@ y abrir http://localhost:8081.
 - Cerrar al exterior el puerto 81 del panel del proxy (Docker se salta el cortafuegos).
 - Copias de seguridad automáticas de la base de datos del servidor.
 - Quitar el acceso público a la hoja de Google y a la carpeta de PDF de Drive.
-- Portafolio: crear `info@luiscontacto03.com` en Cloudflare Email Routing (es el correo de contacto
-  publicado) y añadir una foto propia.
 - Veri\*Factu: confirmar requisitos con el gestor antes de emitir facturas reales desde el portal.
 - El correo de avisos de MantisBT está desactivado en producción (el portal envía los suyos).
