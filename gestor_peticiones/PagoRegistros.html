@@ -1,0 +1,44 @@
+<section id="pagos" class="view hidden">
+  <header class="view-head">
+    <h2>Cobros</h2>
+    <p>Marca como cobrados todos los registros pendientes de una empresa en un rango de fechas.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Sección de cobros">
+    <button type="button" data-nav="cobro" onclick="coreMostrarVista('cobro')">Calcular</button>
+    <button type="button" data-nav="pagos" onclick="coreMostrarVista('pagos')">Cobrar</button>
+    <button type="button" data-nav="facturacion" onclick="coreMostrarVista('facturacion')">Resumen</button>
+    <button type="button" data-nav="documentos" onclick="coreMostrarVista('documentos')">Facturas</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid grid-3">
+      <div class="field">
+        <label for="pagoEmpresa">Empresa</label>
+        <select id="pagoEmpresa" onchange="pagosMostrarUltimoCobro('pagoUltimoCobro', 'pagoEmpresa', 'pagoDesde')"></select>
+      </div>
+
+      <div class="field">
+        <label for="pagoDesde">Desde</label>
+        <input id="pagoDesde" type="date">
+      </div>
+
+      <div class="field">
+        <label for="pagoHasta">Hasta</label>
+        <input id="pagoHasta" type="date">
+      </div>
+    </div>
+
+    <div id="pagoUltimoCobro" class="last-pay hidden"></div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" onclick="pagosCalcularPeriodo()">Calcular pendiente</button>
+      <button type="button" class="btn btn-primary" onclick="pagosCobrarTodo()">Cobrar todo el periodo</button>
+    </div>
+
+    <div id="mensajePagos" class="message hidden"></div>
+  </div>
+
+  <div id="pagosResultado" class="pagos-result hidden"></div>
+  <div id="pagosListado" class="pagos-list"></div>
+</section>

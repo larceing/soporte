@@ -1,0 +1,67 @@
+<section id="home" class="view">
+  <header class="view-head">
+    <p id="homeFecha" class="eyebrow"></p>
+    <h2>Inicio</h2>
+  </header>
+
+  <div id="estadoActual">
+    <div class="empty">Cargando estado...</div>
+  </div>
+
+  <div id="mensajeHome" class="message hidden"></div>
+
+  <div id="homeResumen"></div>
+
+  <div id="homeConfirmacion" class="dialog hidden">
+    <div class="dialog-box" role="dialog" aria-labelledby="homeConfirmacionTitulo">
+      <h3 id="homeConfirmacionTitulo">Parar petición</h3>
+      <p>Se cerrará la petición en curso y se guardará el tiempo.</p>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" onclick="homeCerrarConfirmacion()">Seguir trabajando</button>
+        <button type="button" class="btn btn-run" onclick="homeEjecutarParadaTrabajo()">Parar y guardar</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="nueva" class="view hidden">
+  <header class="view-head">
+    <h2>Nuevo registro</h2>
+    <p>Empieza a contar el tiempo de una petición.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Tipo de registro">
+    <button type="button" data-nav="nueva" onclick="coreMostrarVista('nueva')">Cronómetro</button>
+    <button type="button" data-nav="registroManual" onclick="coreMostrarVista('registroManual')">Manual</button>
+    <button type="button" data-nav="cobroUnico" onclick="coreMostrarVista('cobroUnico')">Cobro único</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid">
+      <div class="field">
+        <label for="inicioEmpresa">Empresa</label>
+        <select id="inicioEmpresa"></select>
+      </div>
+
+      <div class="field">
+        <label for="inicioPeticionTexto">Petición</label>
+        <input id="inicioPeticionTexto" type="text">
+      </div>
+
+      <div class="field field-full">
+        <label for="inicioObservaciones">Observaciones</label>
+        <textarea id="inicioObservaciones"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="btnEmpezar" class="btn btn-primary btn-xl" onclick="homeEmpezarTrabajo()">
+        <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg>
+        <span>Empezar ahora</span>
+      </button>
+    </div>
+
+    <div id="mensajeNueva" class="message hidden"></div>
+  </div>
+</section>

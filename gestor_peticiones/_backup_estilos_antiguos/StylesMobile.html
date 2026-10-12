@@ -1,0 +1,27 @@
+<style>
+.historial-scroll-control {
+  display: none;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .view {
+    width: 100%;
+    max-width: none;
+  }
+
+  .historial-scroll,
+  .pagos-table-wrap,
+  .cobro-tabla-wrap,
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-box,
+  .home-confirm-box,
+  .historial-confirm-box {
+    width: 100%;
+    max-width: none;
+  }
+}
+</style>

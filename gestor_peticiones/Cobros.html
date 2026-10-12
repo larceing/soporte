@@ -1,0 +1,42 @@
+<section id="cobro" class="view hidden">
+  <header class="view-head">
+    <h2>Cobros</h2>
+    <p>Calcula lo pendiente de un periodo. Solo se incluyen peticiones cerradas.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Sección de cobros">
+    <button type="button" data-nav="cobro" onclick="coreMostrarVista('cobro')">Calcular</button>
+    <button type="button" data-nav="pagos" onclick="coreMostrarVista('pagos')">Cobrar</button>
+    <button type="button" data-nav="facturacion" onclick="coreMostrarVista('facturacion')">Resumen</button>
+    <button type="button" data-nav="documentos" onclick="coreMostrarVista('documentos')">Facturas</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid grid-3">
+      <div class="field">
+        <label for="cobroDesde">Desde</label>
+        <input id="cobroDesde" type="date">
+      </div>
+
+      <div class="field">
+        <label for="cobroHasta">Hasta</label>
+        <input id="cobroHasta" type="date">
+      </div>
+
+      <div class="field">
+        <label for="cobroEmpresa">Empresa</label>
+        <select id="cobroEmpresa" onchange="pagosMostrarUltimoCobro('cobroUltimoCobro', 'cobroEmpresa', 'cobroDesde')"></select>
+      </div>
+    </div>
+
+    <div id="cobroUltimoCobro" class="last-pay hidden"></div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="cobroCalcular()">Calcular</button>
+    </div>
+
+    <div id="mensajeCobro" class="message hidden"></div>
+  </div>
+
+  <div id="cobroResultado" class="cobro-result hidden"></div>
+</section>

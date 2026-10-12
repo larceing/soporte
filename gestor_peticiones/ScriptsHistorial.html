@@ -1,0 +1,209 @@
+<script>
+function historialCargar() {
+  const box = document.getElementById('historialContenido');
+  box.innerHTML = '<div class="empty">Cargando historial...</div>';
+  coreCargarEmpresas(['historialFiltroEmpresa'], true);
+
+  const filtros = {
+    desde: coreGetValue('historialFiltroDesde'),
+    hasta: coreGetValue('historialFiltroHasta'),
+    id: coreGetValue('historialFiltroId'),
+    empresa: coreGetValue('historialFiltroEmpresa'),
+    peticion: coreGetValue('historialFiltroPeticion'),
+    estado: coreGetValue('historialFiltroEstado'),
+    estadoCobro: coreGetValue('historialFiltroEstadoCobro')
+  };
+
+  document.querySelectorAll('#historialChips [data-cobro]').forEach(function(chip) {
+    const activo = chip.getAttribute('data-cobro') === filtros.estadoCobro;
+    chip.classList.toggle('is-active', activo);
+    chip.setAttribute('aria-pressed', activo ? 'true' : 'false');
+  });
+
+  google.script.run
+    .withSuccessHandler(historialPintar)
+    .withFailureHandler(function(error) {
+      box.innerHTML = '<div class="message error">' + coreEscapeHtml(coreTextoError(error)) + '</div>';
+    })
+    .historialObtenerPeticiones(filtros);
+}
+
+function historialFiltrarCobro(valor) {
+  document.getElementById('historialFiltroEstadoCobro').value = valor;
+  historialCargar();
+}
+
+function historialPintar(items) {
+  const box = document.getElementById('historialContenido');
+
+  if (!items || !items.length) {
+    box.innerHTML = '<div class="empty">No hay peticiones con estos filtros.</div>';
+    return;
+  }
+
+  // Agrupa por mes conservando el orden en que llegan (más recientes primero).
+  const grupos = [];
+
+  items.forEach(function(r) {
+    const inicio = coreParseFecha(r.inicio);
+    const titulo = inicio
+      ? CORE_MESES_LARGOS[inicio.getMonth()] + ' ' + inicio.getFullYear()
+      : 'Sin fecha';
+    const ultimo = grupos[grupos.length - 1];
+
+    if (ultimo && ultimo.titulo === titulo) {
+      ultimo.items.push(r);
+    } else {
+      grupos.push({ titulo: titulo, items: [r] });
+    }
+  });
+
+  box.innerHTML = grupos.map(function(grupo) {
+    return '<div class="pet-month">' + coreEscapeHtml(grupo.titulo) + '</div>' +
+      '<div class="pet-list">' +
+      grupo.items.map(function(r) {
+        return corePeticionHtml(r, 'historialEditar');
+      }).join('') +
+      '</div>';
+  }).join('');
+}
+
+function historialEditar(id) {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      document.getElementById('editId').value = data.id;
+      coreCargarEmpresas(['editEmpresa'], false, function() {
+        document.getElementById('editEmpresa').value = data.empresa;
+      });
+      document.getElementById('editPeticion').value = data.peticion;
+      document.getElementById('editInicio').value = data.inicio;
+      document.getElementById('editFin').value = data.fin;
+      document.getElementById('editMinutos').value = data.minutosReales;
+      document.getElementById('editHoras').value = data.horasFacturadas;
+      document.getElementById('editTarifa').value = data.tarifaHora;
+      document.getElementById('editImporte').value = data.importe;
+      document.getElementById('editEstado').value = data.estado || 'CERRADA';
+      document.getElementById('editTipo').value = data.tipo || 'MANUAL';
+      document.getElementById('editObservaciones').value = data.observaciones;
+
+      document.getElementById('editInicio').onchange = historialRecalcularEdicion;
+      document.getElementById('editFin').onchange = historialRecalcularEdicion;
+      document.getElementById('editTarifa').onchange = historialRecalcularEdicion;
+
+      document.getElementById('historialEditor').classList.remove('hidden');
+      document.getElementById('historialEditor').scrollIntoView({ behavior: 'smooth' });
+    })
+    .withFailureHandler(coreManejarError('mensajeHistorialGeneral'))
+    .historialObtenerPeticionPorId(id);
+}
+
+function historialGuardarEdicion() {
+  const datos = {
+    id: coreGetValue('editId'),
+    empresa: coreGetValue('editEmpresa'),
+    peticion: coreGetValue('editPeticion'),
+    inicio: coreGetValue('editInicio'),
+    fin: coreGetValue('editFin'),
+    minutosReales: coreGetValue('editMinutos'),
+    horasFacturadas: coreGetValue('editHoras'),
+    tarifaHora: coreGetValue('editTarifa'),
+    importe: coreGetValue('editImporte'),
+    estado: coreGetValue('editEstado'),
+    tipo: coreGetValue('editTipo'),
+    observaciones: coreGetValue('editObservaciones')
+  };
+
+  google.script.run
+    .withSuccessHandler(function() {
+      historialCerrarEditor();
+      historialCargar();
+      coreMensaje('mensajeHistorialGeneral', 'Petición actualizada correctamente.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeHistorialEditor'))
+    .historialActualizarPeticion(datos);
+}
+
+function historialCerrarEditor() {
+  document.getElementById('historialEditor').classList.add('hidden');
+}
+
+function historialRecalcularEdicion() {
+  const inicioValor = document.getElementById('editInicio').value;
+  const finValor = document.getElementById('editFin').value;
+  const tarifaValor = Number(document.getElementById('editTarifa').value || 0);
+
+  if (!inicioValor || !finValor) return;
+
+  const inicio = new Date(inicioValor);
+  const fin = new Date(finValor);
+
+  if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) return;
+  if (fin <= inicio) return;
+
+  const minutos = Math.max(1, Math.ceil((fin - inicio) / 1000 / 60));
+  const horas = Math.max(1, Math.ceil(minutos / 60));
+  const importe = horas * tarifaValor;
+
+  document.getElementById('editMinutos').value = minutos;
+  document.getElementById('editHoras').value = horas;
+  document.getElementById('editImporte').value = importe;
+}
+
+function historialLimpiarFiltros() {
+  [
+    'historialFiltroDesde',
+    'historialFiltroHasta',
+    'historialFiltroId',
+    'historialFiltroEmpresa',
+    'historialFiltroPeticion',
+    'historialFiltroEstado',
+    'historialFiltroEstadoCobro'
+  ].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  historialCargar();
+}
+
+let historialIdPendienteEliminar = '';
+
+function historialPrepararEliminar() {
+  const id = coreGetValue('editId');
+
+  if (!id) {
+    coreMensaje('mensajeHistorialEditor', 'No hay petición seleccionada.', 'error');
+    return;
+  }
+
+  historialIdPendienteEliminar = id;
+
+  document.getElementById('historialEliminarIdTexto').textContent = id;
+  document.getElementById('historialConfirmacionEliminar').classList.remove('hidden');
+}
+
+function historialCancelarEliminar() {
+  historialIdPendienteEliminar = '';
+  document.getElementById('historialConfirmacionEliminar').classList.add('hidden');
+}
+
+function historialConfirmarEliminar() {
+  const id = historialIdPendienteEliminar;
+
+  if (!id) {
+    coreMensaje('mensajeHistorialGeneral', 'No hay petición seleccionada.', 'error');
+    historialCancelarEliminar();
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function() {
+      historialCancelarEliminar();
+      historialCerrarEditor();
+      historialCargar();
+      coreMensaje('mensajeHistorialGeneral', 'Petición eliminada correctamente.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeHistorialGeneral'))
+    .historialEliminarPeticion(id);
+}
+</script>

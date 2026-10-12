@@ -1,0 +1,44 @@
+<script>
+function cobroUnicoPreparar() {
+  coreCargarEmpresas(['unicoEmpresa'], false);
+
+  const fecha = document.getElementById('unicoFecha');
+  if (fecha && !fecha.value) {
+    fecha.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+function cobroUnicoGuardar() {
+  const datos = {
+    fecha: coreGetValue('unicoFecha'),
+    importe: coreGetValue('unicoImporte'),
+    empresa: coreGetValue('unicoEmpresa'),
+    concepto: coreGetValue('unicoConcepto'),
+    observaciones: coreGetValue('unicoObservaciones')
+  };
+
+  coreMensaje('mensajeCobroUnico', 'Guardando cobro único...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(id) {
+      coreMensaje('mensajeCobroUnico', 'Cobro creado: ' + id, 'ok');
+      cobroUnicoLimpiar();
+    })
+    .withFailureHandler(coreManejarError('mensajeCobroUnico'))
+    .cobroUnicoCrear(datos);
+}
+
+function cobroUnicoLimpiar() {
+  [
+    'unicoImporte',
+    'unicoEmpresa',
+    'unicoConcepto',
+    'unicoObservaciones'
+  ].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  cobroUnicoPreparar();
+}
+</script>

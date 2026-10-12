@@ -1,0 +1,304 @@
+<script>
+const CORE_MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const CORE_MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+let coreMoneda = '€';
+
+document.addEventListener('DOMContentLoaded', function() {
+  coreMostrarVista('home');
+});
+
+function coreMostrarVista(id) {
+  coreLimpiarMensajes();
+
+  document.querySelectorAll('.view').forEach(function(el) {
+    el.classList.add('hidden');
+  });
+
+  const vista = document.getElementById(id);
+
+  if (!vista) {
+    coreMostrarErrorGlobal('No existe la vista: ' + id);
+    return;
+  }
+
+  vista.classList.remove('hidden');
+  coreMarcarNavegacion(id);
+  window.scrollTo(0, 0);
+
+  if (id === 'home') homeCargarEstado();
+  if (id === 'nueva') nuevaPreparar();
+  if (id === 'registroManual') manualPreparar();
+  if (id === 'historial') historialCargar();
+  if (id === 'configuracion') configCargar();
+  if (id === 'cobro') cobroPreparar();
+  if (id === 'facturacion') facturacionPreparar();
+  if (id === 'cobroUnico') cobroUnicoPreparar();
+  if (id === 'pagos') pagosPreparar();
+  if (id === 'documentos') documentosPreparar();
+}
+
+function coreMarcarNavegacion(id) {
+  document.querySelectorAll('[data-nav]').forEach(function(el) {
+    const vistas = el.getAttribute('data-nav').split(' ');
+    const activa = vistas.indexOf(id) !== -1;
+
+    el.classList.toggle('is-active', activa);
+
+    if (activa) {
+      el.setAttribute('aria-current', 'page');
+    } else {
+      el.removeAttribute('aria-current');
+    }
+  });
+}
+
+function coreMostrarModulo(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
+
+function coreOcultarModulo(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+
+function coreGetValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  return coreSanitizarParaSheets(el.value);
+}
+
+function coreSanitizarParaSheets(valor) {
+  if (valor === null || valor === undefined) return '';
+
+  const texto = String(valor).trim();
+  if (!texto) return '';
+
+  if (/^[=+\-@]/.test(texto)) {
+    return "'" + texto;
+  }
+
+  return texto;
+}
+
+function coreEscapeHtml(valor) {
+  if (valor === null || valor === undefined) return '';
+
+  return String(valor)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function coreMensaje(id, texto, tipo) {
+  const el = document.getElementById(id);
+
+  if (!el) {
+    coreMostrarErrorGlobal(texto);
+    return;
+  }
+
+  el.className = 'message ' + (tipo || 'info');
+  el.setAttribute('role', tipo === 'error' ? 'alert' : 'status');
+  el.innerHTML = coreEscapeHtml(texto);
+  el.classList.remove('hidden');
+
+  if (tipo !== 'error') {
+    setTimeout(function() {
+      el.classList.add('hidden');
+    }, 4000);
+  }
+}
+
+function coreMostrarErrorGlobal(error) {
+  const texto = coreTextoError(error);
+
+  let el = document.getElementById('errorGlobal');
+
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'errorGlobal';
+    el.className = 'message error core-error-global';
+    el.setAttribute('role', 'alert');
+    document.body.prepend(el);
+  }
+
+  el.innerHTML = '<strong>Error:</strong> ' + coreEscapeHtml(texto);
+  el.classList.remove('hidden');
+
+  console.error(error);
+}
+
+function coreOcultarErrorGlobal() {
+  const el = document.getElementById('errorGlobal');
+  if (el) el.classList.add('hidden');
+}
+
+function coreLimpiarMensajes() {
+  coreOcultarErrorGlobal();
+
+  document.querySelectorAll('.message').forEach(function(el) {
+    el.classList.add('hidden');
+  });
+}
+
+function coreTextoError(error) {
+  if (!error) return 'Error desconocido';
+  if (typeof error === 'string') return error;
+  if (error.message) return error.message;
+
+  try {
+    return JSON.stringify(error);
+  } catch (e) {
+    return String(error);
+  }
+}
+
+function coreManejarError(idMensaje) {
+  return function(error) {
+    const texto = coreTextoError(error);
+
+    if (idMensaje) {
+      coreMensaje(idMensaje, texto, 'error');
+    } else {
+      coreMostrarErrorGlobal(texto);
+    }
+
+    console.error(error);
+  };
+}
+
+function coreCargarEmpresas(selectIds, permitirTodas, alTerminar) {
+  google.script.run
+    .withSuccessHandler(function(empresas) {
+      selectIds.forEach(function(id) {
+        corePoblarSelectEmpresas(id, empresas || [], permitirTodas);
+      });
+      if (typeof alTerminar === 'function') {
+        alTerminar(empresas || []);
+      }
+    })
+    .withFailureHandler(coreManejarError())
+    .clientesListar();
+}
+
+function corePoblarSelectEmpresas(id, empresas, permitirTodas) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const valorActual = el.value;
+  const opciones = [];
+
+  if (permitirTodas) {
+    opciones.push('<option value="">Todas</option>');
+  } else {
+    opciones.push('<option value="">Selecciona empresa</option>');
+  }
+
+  empresas.forEach(function(item) {
+    const empresa = item.empresa || '';
+    const tarifa = Number(item.tarifaHora || 0) > 0 ? ' · ' + item.tarifaHora + '/h' : '';
+    opciones.push(
+      '<option value="' + coreEscapeHtml(empresa) + '">' +
+      coreEscapeHtml(empresa + tarifa) +
+      '</option>'
+    );
+  });
+
+  el.innerHTML = opciones.join('');
+  el.value = valorActual;
+}
+
+function coreFechaLocal(valor) {
+  if (!valor) return '';
+
+  const f = new Date(valor);
+
+  if (isNaN(f.getTime())) {
+    return String(valor);
+  }
+
+  return f.toLocaleString('es-ES');
+}
+
+// Convierte 'dd/MM/yyyy HH:mm', el formato que devuelve el historial, en fecha.
+function coreParseFecha(texto) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/.exec(String(texto || ''));
+  if (!m) return null;
+
+  return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4] || 0), Number(m[5] || 0));
+}
+
+function coreDosDigitos(n) {
+  return String(n).padStart(2, '0');
+}
+
+function coreHora(fecha) {
+  return coreDosDigitos(fecha.getHours()) + ':' + coreDosDigitos(fecha.getMinutes());
+}
+
+function coreDinero(valor) {
+  const n = Number(valor);
+
+  if (valor === '' || valor === null || valor === undefined || isNaN(n)) {
+    return '—';
+  }
+
+  return n.toLocaleString('es-ES', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }) + ' ' + coreMoneda;
+}
+
+function corePeticionBadge(r) {
+  if (r.estado === 'EN_CURSO') return '<span class="badge badge-run">En curso</span>';
+  if (r.estado === 'NO_COBRAR') return '<span class="badge badge-neutral">No cobrar</span>';
+  if (r.estadoCobro === 'COBRADO') return '<span class="badge badge-ok">Cobrada</span>';
+  if (r.estadoCobro === 'PENDIENTE') return '<span class="badge badge-pend">Pendiente</span>';
+
+  return '';
+}
+
+// Fila de petición compartida por Inicio e Historial. `accion` es el nombre de
+// la función global que recibe el id al pulsarla.
+function corePeticionHtml(r, accion) {
+  const inicio = coreParseFecha(r.inicio);
+  const fin = coreParseFecha(r.fin);
+  const meta = [];
+
+  if (inicio) {
+    meta.push(inicio.getDate() + ' ' + CORE_MESES[inicio.getMonth()]);
+  }
+
+  if (r.tipo === 'UNICO') {
+    meta.push('cobro único');
+  } else {
+    if (inicio && fin) {
+      meta.push(coreHora(inicio) + '–' + coreHora(fin));
+    } else if (inicio) {
+      meta.push('desde las ' + coreHora(inicio));
+    }
+
+    if (Number(r.horasFacturadas) > 0) {
+      meta.push(r.horasFacturadas + ' h');
+    }
+  }
+
+  return `
+    <button type="button"
+            class="pet ${r.estado === 'NO_COBRAR' ? 'pet-off' : ''}"
+            onclick="${accion}('${coreEscapeHtml(r.id)}')">
+      <span class="pet-main">
+        <span class="pet-title">${coreEscapeHtml(r.peticion || 'Sin descripción')}</span>
+        <span class="pet-sub">${coreEscapeHtml(r.empresa || 'Sin empresa')}</span>
+      </span>
+      <span class="pet-meta">${coreEscapeHtml(meta.join(' · '))}</span>
+      <span class="pet-amount">${coreEscapeHtml(coreDinero(r.importe))}</span>
+      <span class="pet-badge">${corePeticionBadge(r)}</span>
+    </button>
+  `;
+}
+</script>

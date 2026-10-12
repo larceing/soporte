@@ -1,0 +1,47 @@
+<section id="cobroUnico" class="view hidden">
+  <header class="view-head">
+    <h2>Nuevo registro</h2>
+    <p>Registra un importe cerrado sin calcular horas.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Tipo de registro">
+    <button type="button" data-nav="nueva" onclick="coreMostrarVista('nueva')">Cronómetro</button>
+    <button type="button" data-nav="registroManual" onclick="coreMostrarVista('registroManual')">Manual</button>
+    <button type="button" data-nav="cobroUnico" onclick="coreMostrarVista('cobroUnico')">Cobro único</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid">
+      <div class="field">
+        <label for="unicoFecha">Fecha</label>
+        <input id="unicoFecha" type="date">
+      </div>
+
+      <div class="field">
+        <label for="unicoImporte">Importe</label>
+        <input id="unicoImporte" type="text" inputmode="decimal" placeholder="57,30">
+      </div>
+
+      <div class="field">
+        <label for="unicoEmpresa">Empresa</label>
+        <select id="unicoEmpresa"></select>
+      </div>
+
+      <div class="field">
+        <label for="unicoConcepto">Concepto</label>
+        <input id="unicoConcepto" type="text" placeholder="Pago puntual">
+      </div>
+
+      <div class="field field-full">
+        <label for="unicoObservaciones">Observaciones</label>
+        <textarea id="unicoObservaciones"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="cobroUnicoGuardar()">Guardar cobro</button>
+    </div>
+
+    <div id="mensajeCobroUnico" class="message hidden"></div>
+  </div>
+</section>

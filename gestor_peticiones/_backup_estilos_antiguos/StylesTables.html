@@ -1,0 +1,46 @@
+<style>
+.table-box {
+  margin-top: 20px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  color: var(--muted);
+  background: var(--surface-soft);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 760px;
+    font-size: 14px;
+  }
+
+  th,
+  td {
+    padding: 12px;
+  }
+}
+</style>

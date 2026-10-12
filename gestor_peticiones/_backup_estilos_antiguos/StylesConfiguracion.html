@@ -1,0 +1,196 @@
+<style>
+.config-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.config-title {
+  margin-bottom: 20px;
+}
+
+.config-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.config-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.config-grid,
+.config-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.config-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.config-field input,
+.config-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.config-field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.config-full {
+  grid-column: 1 / -1;
+}
+
+.config-section {
+  margin-top: 28px;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.config-section h3 {
+  margin: 0 0 16px;
+  color: var(--heading);
+  font-size: 22px;
+}
+
+.config-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.config-client-row {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.config-client-row span {
+  font-weight: 900;
+}
+
+.config-client-row strong {
+  color: var(--heading);
+}
+
+.config-empty {
+  color: var(--muted);
+}
+
+.config-actions {
+  margin-top: 20px;
+  gap: 14px;
+}
+
+.config-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.config-btn-save {
+  background: var(--primary);
+}
+
+.config-btn-back {
+  background: var(--secondary);
+}
+
+@media (min-width: 800px) {
+  .config-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .config-actions {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .config-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .config-title h2 {
+    font-size: 26px;
+  }
+
+  .config-grid,
+  .config-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .config-field input,
+  .config-field textarea {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .config-btn {
+    min-height: 78px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+}
+
+.mobile-ui .config-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .config-grid,
+.mobile-ui .config-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .config-field input,
+.mobile-ui .config-field textarea {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .config-btn {
+  min-height: 78px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+</style>

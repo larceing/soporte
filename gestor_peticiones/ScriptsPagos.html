@@ -1,0 +1,286 @@
+<script>
+function pagosPreparar() {
+  coreCargarEmpresas(['pagoEmpresa'], false);
+
+  const hoy = new Date().toISOString().slice(0, 10);
+  ['pagoDesde', 'pagoHasta'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = hoy;
+  });
+
+  pagosCargarListado();
+  pagosMostrarUltimoCobro('pagoUltimoCobro', 'pagoEmpresa', 'pagoDesde');
+}
+
+function pagosLeerPeriodo() {
+  return {
+    empresa: coreGetValue('pagoEmpresa'),
+    desde: coreGetValue('pagoDesde'),
+    hasta: coreGetValue('pagoHasta')
+  };
+}
+
+function pagosCalcularPeriodo() {
+  coreMensaje('mensajePagos', 'Calculando pendiente...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      pagosPintarResumen(data);
+      coreMensaje('mensajePagos', 'Cálculo completado.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajePagos'))
+    .cobroCalcularImporte(pagosLeerPeriodo());
+}
+
+function pagosCobrarTodo() {
+  coreMensaje('mensajePagos', 'Cobrando periodo completo...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      pagosPintarResumen(data.resumen);
+      pagosCargarListado();
+      pagosMostrarUltimoCobro('pagoUltimoCobro', 'pagoEmpresa', 'pagoDesde');
+      coreMensaje('mensajePagos', 'Periodo cobrado: ' + data.id, 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajePagos'))
+    .cobroCobrarTodoPeriodo(pagosLeerPeriodo());
+}
+
+function pagosPintarResumen(data) {
+  const box = document.getElementById('pagosResultado');
+  if (!box) return;
+
+  box.classList.remove('hidden');
+
+  const tabla = data.lineas && data.lineas.length
+    ? `
+      <div class="pagos-table-wrap">
+        <table class="pagos-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Petición</th>
+              <th>Horas</th>
+              <th>Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.lineas.map(function(r) {
+              return `
+                <tr>
+                  <td>${coreEscapeHtml(r.fecha)}</td>
+                  <td>${coreEscapeHtml(r.peticion)}</td>
+                  <td>${coreEscapeHtml(r.horasTexto || r.horas)}</td>
+                  <td>${coreEscapeHtml(r.importe)} ${coreEscapeHtml(data.moneda)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+    : '<div class="pagos-empty">No hay registros pendientes para cobrar en este periodo.</div>';
+
+  box.innerHTML = `
+    <div class="pagos-total-label">Pendiente de cobrar</div>
+    <div class="pagos-total">${coreEscapeHtml(data.total)} ${coreEscapeHtml(data.moneda)}</div>
+    <div class="pagos-meta">Empresa: ${coreEscapeHtml(data.empresa || '-')}</div>
+    <div class="pagos-meta">Periodo: ${coreEscapeHtml(data.desde)} - ${coreEscapeHtml(data.hasta)}</div>
+    <div class="pagos-meta">Registros pendientes: ${coreEscapeHtml(data.registros)}</div>
+    ${tabla}
+  `;
+}
+
+function pagosCargarListado() {
+  google.script.run
+    .withSuccessHandler(pagosPintarListado)
+    .withFailureHandler(coreManejarError('mensajePagos'))
+    .pagosListar({});
+}
+
+function pagosPintarListado(items) {
+  const box = document.getElementById('pagosListado');
+  if (!box) return;
+
+  if (!items || !items.length) {
+    box.innerHTML = '<div class="pagos-empty">No hay periodos cobrados.</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <h3 class="pagos-subtitle">Periodos cobrados</h3>
+    <div class="pagos-table-wrap">
+      <table class="pagos-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Empresa</th>
+            <th>Periodo</th>
+            <th>Importe</th>
+            <th>Concepto</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(function(r) {
+            return `
+              <tr>
+                <td>${coreEscapeHtml(r.fechaPago)}</td>
+                <td>${coreEscapeHtml(r.empresa)}</td>
+                <td>${coreEscapeHtml(r.periodoDesde)} - ${coreEscapeHtml(r.periodoHasta)}</td>
+                <td>${coreEscapeHtml(r.importe)}</td>
+                <td>${coreEscapeHtml(r.concepto)}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+const pagosUltimoCobroPeticion = {};
+
+function pagosFechaIso(fecha) {
+  return fecha.getFullYear() + '-' +
+    coreDosDigitos(fecha.getMonth() + 1) + '-' +
+    coreDosDigitos(fecha.getDate());
+}
+
+function pagosFechaTexto(fecha) {
+  return coreDosDigitos(fecha.getDate()) + '/' +
+    coreDosDigitos(fecha.getMonth() + 1) + '/' +
+    fecha.getFullYear();
+}
+
+// Muestra el último cobro registrado de la empresa elegida (o de todas si no
+// hay ninguna) y ofrece empezar el periodo el día siguiente al último cobrado.
+function pagosMostrarUltimoCobro(boxId, selectId, desdeId) {
+  const box = document.getElementById(boxId);
+  const select = document.getElementById(selectId);
+  if (!box || !select) return;
+
+  const empresa = select.value;
+  const peticion = (pagosUltimoCobroPeticion[boxId] || 0) + 1;
+  pagosUltimoCobroPeticion[boxId] = peticion;
+
+  google.script.run
+    .withSuccessHandler(function(items) {
+      // Descarta respuestas de una empresa que ya no es la seleccionada.
+      if (pagosUltimoCobroPeticion[boxId] !== peticion) return;
+
+      box.classList.remove('hidden');
+
+      if (!items || !items.length) {
+        box.innerHTML = empresa
+          ? '<div><strong>Último cobro:</strong> esta empresa no tiene cobros registrados.</div>'
+          : '<div><strong>Último cobro:</strong> todavía no hay cobros registrados.</div>';
+        pagosMostrarPendienteAntigua(boxId, peticion, empresa, desdeId, null);
+        return;
+      }
+
+      const ultimo = items[0];
+      const finCobrado = coreParseFecha(ultimo.periodoHasta);
+      let siguiente = '';
+
+      if (finCobrado) {
+        const dia = new Date(finCobrado.getFullYear(), finCobrado.getMonth(), finCobrado.getDate() + 1);
+
+        siguiente = `
+          <button type="button" class="link-btn last-pay-next"
+                  onclick="pagosUsarDesde('${desdeId}', '${pagosFechaIso(dia)}')">
+            Empezar el periodo el ${coreEscapeHtml(pagosFechaTexto(dia))}
+          </button>
+        `;
+      }
+
+      box.innerHTML = `
+        <div>
+          <strong>Último cobro${empresa ? '' : ' (' + coreEscapeHtml(ultimo.empresa) + ')'}:</strong>
+          ${coreEscapeHtml(ultimo.fechaPago)}
+        </div>
+        <div>
+          Periodo cobrado: ${coreEscapeHtml(ultimo.periodoDesde)} – ${coreEscapeHtml(ultimo.periodoHasta)}
+          · ${coreEscapeHtml(coreDinero(ultimo.importe))}
+        </div>
+        ${siguiente}
+      `;
+
+      pagosMostrarPendienteAntigua(boxId, peticion, empresa, desdeId, finCobrado);
+    })
+    .withFailureHandler(function() {
+      if (pagosUltimoCobroPeticion[boxId] !== peticion) return;
+      box.classList.add('hidden');
+    })
+    .pagosListar({ empresa: empresa });
+}
+
+// Añade la fecha de la petición pendiente más antigua. Si cae dentro de un
+// periodo ya cobrado (se apuntó tarde), avisa y sustituye la fecha propuesta
+// para que esa petición no se quede sin cobrar.
+function pagosMostrarPendienteAntigua(boxId, peticion, empresa, desdeId, finCobrado) {
+  google.script.run
+    .withSuccessHandler(function(items) {
+      if (pagosUltimoCobroPeticion[boxId] !== peticion) return;
+
+      const box = document.getElementById(boxId);
+      if (!box) return;
+
+      const buscada = String(empresa || '').trim().toLowerCase();
+      let antigua = null;
+      let atrasadas = 0;
+
+      (items || []).forEach(function(r) {
+        if (buscada && String(r.empresa || '').trim().toLowerCase() !== buscada) return;
+
+        const fecha = coreParseFecha(r.inicio);
+        if (!fecha) return;
+
+        const dia = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+
+        if (!antigua || dia < antigua) antigua = dia;
+        if (finCobrado && dia <= finCobrado) atrasadas++;
+      });
+
+      if (!antigua) {
+        box.insertAdjacentHTML('beforeend', '<div>No hay peticiones pendientes de cobro.</div>');
+        return;
+      }
+
+      const texto = pagosFechaTexto(antigua);
+      const enlace = `
+        <button type="button" class="link-btn"
+                onclick="pagosUsarDesde('${desdeId}', '${pagosFechaIso(antigua)}')">
+          Empezar el periodo el ${coreEscapeHtml(texto)}
+        </button>
+      `;
+
+      if (atrasadas > 0) {
+        const anterior = box.querySelector('.last-pay-next');
+        if (anterior) anterior.remove();
+
+        box.insertAdjacentHTML('beforeend', `
+          <div class="last-pay-warn">
+            <strong>Atención:</strong>
+            ${atrasadas === 1 ? 'hay 1 petición sin cobrar' : 'hay ' + atrasadas + ' peticiones sin cobrar'}
+            con fecha dentro de un periodo ya cobrado. La más antigua es del ${coreEscapeHtml(texto)}.
+          </div>
+          ${enlace}
+        `);
+        return;
+      }
+
+      box.insertAdjacentHTML('beforeend', '<div>Pendiente más antigua: ' + coreEscapeHtml(texto) + '</div>');
+
+      if (!box.querySelector('.last-pay-next')) {
+        box.insertAdjacentHTML('beforeend', enlace);
+      }
+    })
+    .withFailureHandler(function() {})
+    .historialObtenerPeticiones({ empresa: empresa, estadoCobro: 'PENDIENTE' });
+}
+
+function pagosUsarDesde(desdeId, fechaIso) {
+  const el = document.getElementById(desdeId);
+  if (el) el.value = fechaIso;
+}
+</script>

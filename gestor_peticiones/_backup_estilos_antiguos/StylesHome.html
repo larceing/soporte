@@ -1,0 +1,549 @@
+<style>
+.home-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.home-title {
+  margin-bottom: 20px;
+}
+
+.home-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 28px;
+}
+
+.home-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.home-status-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  background: var(--surface-soft);
+}
+
+.home-status-free {
+  border-left: 5px solid var(--ok);
+}
+
+.home-status-active {
+  border-left: 5px solid var(--danger);
+}
+
+.home-status-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.home-status-main {
+  margin-top: 8px;
+  color: var(--heading);
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.home-status-line {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.home-main-actions,
+.home-nav-grid,
+.home-form-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.home-btn {
+  min-height: 64px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 14px 18px;
+  color: #fff;
+  font-weight: 900;
+  font-size: 17px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.home-btn span,
+.home-btn small {
+  display: block;
+}
+
+.home-btn small {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.78;
+  text-transform: none;
+}
+
+.home-btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid !important;
+  place-items: center;
+  margin: 0 auto 9px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.home-btn-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.home-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.home-btn-start {
+  background: var(--primary);
+}
+
+.home-btn-stop {
+  background: var(--danger);
+}
+
+.home-btn-secondary,
+.home-btn-muted {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--heading);
+  box-shadow: 0 10px 24px rgba(34, 59, 84, 0.07);
+}
+
+.home-btn-secondary .home-btn-icon,
+.home-btn-muted .home-btn-icon {
+  background: var(--pastel-blue);
+  color: var(--primary);
+}
+
+.home-btn-accent {
+  background: #ffffff;
+  border-color: #e6cf9a;
+  color: #744819;
+  box-shadow: 0 10px 24px rgba(117, 79, 31, 0.08);
+}
+
+.home-btn-accent .home-btn-icon {
+  background: var(--pastel-gold);
+  color: #744819;
+}
+
+.home-subpanel {
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.home-subpanel h3 {
+  margin-top: 0;
+  color: var(--heading);
+}
+
+.home-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.home-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.home-field input,
+.home-field select,
+.home-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.home-field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.home-field input:focus,
+.home-field select:focus,
+.home-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 99, 140, 0.16);
+}
+
+.home-full {
+  grid-column: 1 / -1;
+}
+
+.home-confirm {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 49, 69, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.home-confirm-box {
+  width: 460px;
+  max-width: 92%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 22px 60px rgba(34, 59, 84, 0.18);
+}
+
+.home-confirm-box h3 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 24px;
+}
+
+.home-confirm-box p {
+  margin: 14px 0 0;
+  color: var(--muted);
+}
+
+.home-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+@media (min-width: 800px) {
+  .home-main-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .home-nav-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .home-form-actions {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .home-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .home-card {
+    width: 100%;
+    max-width: none !important;
+    min-height: calc(100vh - 20px);
+    border-radius: 18px;
+    padding: 16px !important;
+  }
+
+  .home-title {
+    margin-bottom: 16px;
+  }
+
+  .home-title h2 {
+    font-size: 28px;
+  }
+
+  .home-title p {
+    font-size: 17px;
+  }
+
+  .home-status-card {
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 18px;
+  }
+
+  .home-status-label {
+    font-size: 14px;
+  }
+
+  .home-status-main {
+    font-size: 34px;
+    line-height: 1.1;
+  }
+
+  .home-status-line {
+    font-size: 16px;
+  }
+
+  .home-main-actions,
+  .home-form-actions,
+  .home-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .home-nav-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .home-btn {
+    width: 100%;
+    min-height: 76px !important;
+    border-radius: 16px;
+    font-size: 17px !important;
+    letter-spacing: 0.2px;
+    padding: 14px 10px;
+  }
+
+  .home-nav-grid .home-btn {
+    min-height: 116px !important;
+    padding: 14px 8px;
+  }
+
+  .home-nav-grid .home-btn small {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .home-nav-grid .home-btn-icon {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 8px;
+  }
+
+  #btnEmpezar,
+  #btnParar {
+    min-height: 96px !important;
+    font-size: 24px !important;
+  }
+
+  .home-subpanel {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .home-field label {
+    font-size: 15px;
+  }
+
+  .home-field input,
+  .home-field select,
+  .home-field textarea {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .home-field textarea {
+    min-height: 140px;
+  }
+
+  .home-confirm {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .home-confirm-box {
+    width: 100%;
+    max-width: none;
+    padding: 22px;
+    border-radius: 20px;
+  }
+
+  .home-confirm-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mobile-ui .home-card {
+  width: 100%;
+  max-width: none !important;
+  min-height: calc(100dvh - 20px);
+  border-radius: 18px;
+  padding: 14px !important;
+}
+
+.mobile-ui .home-title {
+  margin-bottom: 16px;
+}
+
+.mobile-ui .home-title h2 {
+  font-size: 28px;
+}
+
+.mobile-ui .home-title p {
+  font-size: 17px;
+}
+
+.mobile-ui .home-status-card {
+  padding: 16px;
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+
+.mobile-ui .home-status-main {
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.mobile-ui .home-main-actions,
+.mobile-ui .home-form-actions,
+.mobile-ui .home-form-grid {
+  grid-template-columns: 1fr !important;
+  gap: 14px;
+}
+
+.mobile-ui .home-nav-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px;
+}
+
+.mobile-ui .home-btn {
+  width: 100%;
+  min-height: 76px !important;
+  border-radius: 16px;
+  font-size: 17px !important;
+  padding: 14px 10px;
+}
+
+.mobile-ui .home-nav-grid .home-btn {
+  min-height: 116px !important;
+  padding: 14px 8px;
+}
+
+.mobile-ui .home-nav-grid .home-btn small {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.mobile-ui .home-nav-grid .home-btn-icon {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 8px;
+}
+
+.mobile-ui #btnEmpezar,
+.mobile-ui #btnParar {
+  min-height: 86px !important;
+  font-size: 23px !important;
+}
+
+.mobile-ui .home-subpanel {
+  padding: 18px;
+  border-radius: 16px;
+}
+
+.mobile-ui .home-field input,
+.mobile-ui .home-field select,
+.mobile-ui .home-field textarea {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .home-field textarea {
+  min-height: 140px;
+}
+
+.mobile-ui .home-confirm {
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.mobile-ui .home-confirm-box {
+  width: 100%;
+  max-width: none;
+  padding: 22px;
+  border-radius: 20px;
+}
+
+.mobile-ui .home-confirm-actions {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 420px) {
+  .home-card {
+    padding: 12px !important;
+  }
+
+  .home-title h2 {
+    font-size: 24px;
+  }
+
+  .home-status-main {
+    font-size: 30px;
+  }
+
+  .home-btn {
+    min-height: 74px !important;
+    font-size: 16px !important;
+  }
+
+  #btnEmpezar,
+  #btnParar {
+    min-height: 88px !important;
+    font-size: 21px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .home-nav-grid,
+  .mobile-ui .home-nav-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-device-width: 900px) {
+  .home-nav-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px;
+  }
+
+  .home-main-actions,
+  .home-form-actions,
+  .home-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .home-nav-grid .home-btn {
+    min-height: 116px !important;
+    padding: 14px 8px;
+    font-size: 17px !important;
+  }
+}
+
+</style>

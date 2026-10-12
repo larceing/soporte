@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+  <?!= include('Styles'); ?>
+</head>
+
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="Secciones">
+      <div class="nav-brand">Gestor de peticiones</div>
+
+      <button type="button" class="nav-item" data-nav="home" onclick="coreMostrarVista('home')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg>
+        <span>Inicio</span>
+      </button>
+
+      <button type="button" class="nav-item" data-nav="historial" onclick="coreMostrarVista('historial')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+        <span>Historial</span>
+      </button>
+
+      <button type="button" class="nav-item nav-new" data-nav="nueva registroManual cobroUnico" onclick="coreMostrarVista('nueva')" aria-label="Nuevo registro">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+        <span>Nuevo registro</span>
+      </button>
+
+      <button type="button" class="nav-item" data-nav="cobro pagos facturacion documentos" onclick="coreMostrarVista('cobro')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M3 10h18"></path><path d="M7 15h3"></path></svg>
+        <span>Cobros</span>
+      </button>
+
+      <button type="button" class="nav-item" data-nav="configuracion" onclick="coreMostrarVista('configuracion')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10"></path><path d="M18 6h2"></path><circle cx="16" cy="6" r="2"></circle><path d="M4 12h2"></path><path d="M10 12h10"></path><circle cx="8" cy="12" r="2"></circle><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="18" r="2"></circle></svg>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+    <main class="app">
+      <div class="app-inner">
+        <?!= include('Homes'); ?>
+        <?!= include('RegistroManuales'); ?>
+        <?!= include('CobroUnicos'); ?>
+        <?!= include('Historiales'); ?>
+        <?!= include('Cobros'); ?>
+        <?!= include('PagoRegistros'); ?>
+        <?!= include('Facturaciones'); ?>
+        <?!= include('Documentos'); ?>
+        <?!= include('Configuraciones'); ?>
+      </div>
+    </main>
+  </div>
+
+  <?!= include('ScriptsCore'); ?>
+  <?!= include('ScriptsHome'); ?>
+  <?!= include('ScriptsRegistroManual'); ?>
+  <?!= include('ScriptsHistorial'); ?>
+  <?!= include('ScriptsConfiguracion'); ?>
+  <?!= include('ScriptsCobro'); ?>
+  <?!= include('ScriptsFacturacion'); ?>
+  <?!= include('ScriptsCobroUnico'); ?>
+  <?!= include('ScriptsPagos'); ?>
+  <?!= include('ScriptsDocumentos'); ?>
+</body>
+</html>

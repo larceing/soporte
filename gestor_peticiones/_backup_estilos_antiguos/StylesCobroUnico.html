@@ -1,0 +1,158 @@
+<style>
+.unico-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.unico-title {
+  margin-bottom: 20px;
+}
+
+.unico-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.unico-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.unico-grid,
+.unico-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.unico-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.unico-field input,
+.unico-field select,
+.unico-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.unico-field textarea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.unico-field input:focus,
+.unico-field select:focus,
+.unico-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.unico-full {
+  grid-column: 1 / -1;
+}
+
+.unico-actions {
+  margin-top: 20px;
+  gap: 14px;
+}
+
+.unico-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.unico-btn-save {
+  background: var(--primary);
+}
+
+.unico-btn-back {
+  background: var(--secondary);
+}
+
+@media (min-width: 800px) {
+  .unico-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .unico-actions {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .unico-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .unico-grid,
+  .unico-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .unico-field input,
+  .unico-field select,
+  .unico-field textarea {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .unico-btn {
+    min-height: 78px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+}
+
+.mobile-ui .unico-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .unico-grid,
+.mobile-ui .unico-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .unico-field input,
+.mobile-ui .unico-field select,
+.mobile-ui .unico-field textarea {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .unico-btn {
+  min-height: 78px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+</style>

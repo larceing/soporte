@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Entrar · Gestor de incidencias</title>
+  <link rel="icon" href="/img/monograma.svg">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/portal.css">
+</head>
+
+<body>
+  <main class="login">
+    <div class="login-brand">
+      <img src="/img/monograma.svg" alt="">
+      <div>
+        <strong>Gestor de incidencias</strong>
+        <span>Henry Arce · Business Applications &amp; Data</span>
+      </div>
+    </div>
+
+    <form id="formLogin" class="panel">
+      <div class="grid">
+        <div class="field">
+          <label for="usuario">Usuario</label>
+          <input id="usuario" type="text" autocomplete="username" autocapitalize="none" required autofocus>
+        </div>
+
+        <div class="field">
+          <label for="clave">Contraseña</label>
+          <input id="clave" type="password" autocomplete="current-password" required>
+        </div>
+      </div>
+
+      <div id="mensajeLogin" class="message error hidden"></div>
+
+      <div class="actions">
+        <button type="submit" id="btnEntrar" class="btn btn-primary">Entrar</button>
+      </div>
+
+      <button type="button" class="login-link" onclick="recuperarMostrar()">He olvidado la contraseña</button>
+    </form>
+
+    <form id="formRecuperar" class="panel hidden">
+      <div class="grid">
+        <div class="field">
+          <label for="recUsuario">Usuario o correo</label>
+          <input id="recUsuario" type="text" autocapitalize="none" required>
+        </div>
+      </div>
+
+      <div id="mensajeRecuperar" class="message hidden"></div>
+
+      <div class="actions">
+        <button type="submit" id="btnRecuperar" class="btn btn-primary">Enviarme un enlace</button>
+      </div>
+
+      <button type="button" class="login-link" onclick="recuperarMostrar()">Volver</button>
+    </form>
+  </main>
+
+  <script>
+    function recuperarMostrar() {
+      document.getElementById('formLogin').classList.toggle('hidden');
+      document.getElementById('formRecuperar').classList.toggle('hidden');
+      document.getElementById('recUsuario').value = document.getElementById('usuario').value;
+    }
+
+    document.getElementById('formRecuperar').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const mensaje = document.getElementById('mensajeRecuperar');
+      const boton = document.getElementById('btnRecuperar');
+      boton.disabled = true;
+
+      try {
+        const respuesta = await fetch('/api/recuperar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario: document.getElementById('recUsuario').value })
+        });
+        const datos = await respuesta.json().catch(function() { return {}; });
+        mensaje.textContent = respuesta.ok ? datos.mensaje : (datos.error || 'No se ha podido enviar.');
+        mensaje.className = 'message ' + (respuesta.ok ? 'ok' : 'error');
+      } catch (err) {
+        mensaje.textContent = 'No hay conexión con el servidor.';
+        mensaje.className = 'message error';
+      }
+      boton.disabled = false;
+    });
+
+    document.getElementById('formLogin').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const mensaje = document.getElementById('mensajeLogin');
+      const boton = document.getElementById('btnEntrar');
+      mensaje.classList.add('hidden');
+      boton.disabled = true;
+
+      try {
+        const respuesta = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario: document.getElementById('usuario').value,
+            clave: document.getElementById('clave').value
+          })
+        });
+
+        if (respuesta.ok) {
+          location.href = '/';
+          return;
+        }
+
+        const datos = await respuesta.json().catch(function() { return {}; });
+        mensaje.textContent = datos.error || 'No se ha podido entrar.';
+      } catch (err) {
+        mensaje.textContent = 'No hay conexión con el servidor.';
+      }
+
+      mensaje.classList.remove('hidden');
+      boton.disabled = false;
+    });
+  </script>
+</body>
+</html>

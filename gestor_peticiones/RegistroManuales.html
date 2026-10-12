@@ -1,0 +1,47 @@
+<section id="registroManual" class="view hidden">
+  <header class="view-head">
+    <h2>Nuevo registro</h2>
+    <p>Crea una petición cerrada con horas concretas.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Tipo de registro">
+    <button type="button" data-nav="nueva" onclick="coreMostrarVista('nueva')">Cronómetro</button>
+    <button type="button" data-nav="registroManual" onclick="coreMostrarVista('registroManual')">Manual</button>
+    <button type="button" data-nav="cobroUnico" onclick="coreMostrarVista('cobroUnico')">Cobro único</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid">
+      <div class="field">
+        <label for="manualEmpresa">Empresa</label>
+        <select id="manualEmpresa"></select>
+      </div>
+
+      <div class="field">
+        <label for="manualPeticion">Petición</label>
+        <input id="manualPeticion" type="text">
+      </div>
+
+      <div class="field">
+        <label for="manualInicio">Inicio</label>
+        <input id="manualInicio" type="datetime-local">
+      </div>
+
+      <div class="field">
+        <label for="manualFin">Fin</label>
+        <input id="manualFin" type="datetime-local">
+      </div>
+
+      <div class="field field-full">
+        <label for="manualObservaciones">Observaciones</label>
+        <textarea id="manualObservaciones"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="manualGuardar()">Guardar registro</button>
+    </div>
+
+    <div id="mensajeManual" class="message hidden"></div>
+  </div>
+</section>

@@ -1,0 +1,257 @@
+<style>
+.cobro-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.cobro-title {
+  margin-bottom: 20px;
+}
+
+.cobro-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.cobro-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.cobro-grid,
+.cobro-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.cobro-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.cobro-field input,
+.cobro-field select {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.cobro-actions {
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.cobro-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.cobro-btn-main {
+  background: var(--primary);
+}
+
+.cobro-btn-back {
+  background: var(--secondary);
+}
+
+.cobro-btn-pay {
+  width: 100%;
+  background: var(--ok);
+}
+
+.cobro-result {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.cobro-total {
+  color: var(--heading);
+  font-size: 34px;
+  font-weight: 900;
+  margin-top: 8px;
+}
+
+.cobro-line {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.cobro-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.cobro-summary div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.cobro-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cobro-summary strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--heading);
+  font-size: 22px;
+}
+
+.cobro-subtitle {
+  margin: 24px 0 0;
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.cobro-period-action {
+  margin-top: 16px;
+}
+
+.cobro-pay-note {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--muted);
+  padding: 14px;
+  font-weight: 800;
+}
+
+.cobro-tabla-wrap {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.cobro-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.cobro-tabla th,
+.cobro-tabla td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cobro-tabla th {
+  color: var(--muted);
+  background: var(--surface-soft);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+@media (min-width: 800px) {
+  .cobro-grid {
+    grid-template-columns: 1fr 1fr 2fr;
+  }
+
+  .cobro-actions {
+    grid-template-columns: 2fr 1fr;
+  }
+
+  .cobro-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .cobro-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .cobro-title h2 {
+    font-size: 26px;
+  }
+
+  .cobro-grid,
+  .cobro-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .cobro-field input,
+  .cobro-field select {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .cobro-btn {
+    min-height: 78px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+
+  .cobro-total {
+    font-size: 38px;
+  }
+
+  .cobro-tabla {
+    min-width: 760px;
+  }
+}
+
+.mobile-ui .cobro-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .cobro-grid,
+.mobile-ui .cobro-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .cobro-field input,
+.mobile-ui .cobro-field select {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .cobro-btn {
+  min-height: 78px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+
+.mobile-ui .cobro-tabla {
+  min-width: 760px;
+}
+</style>

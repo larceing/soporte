@@ -1,0 +1,81 @@
+<section id="configuracion" class="view hidden">
+  <header class="view-head">
+    <h2>Ajustes</h2>
+    <p>Tarifa general y empresas.</p>
+  </header>
+
+  <div id="mensajeConfig" class="message hidden"></div>
+
+  <div class="panel">
+    <h3>General</h3>
+
+    <div class="grid">
+      <div class="field">
+        <label for="configTarifaHora">Tarifa hora</label>
+        <input id="configTarifaHora" type="number" step="0.01">
+      </div>
+
+      <div class="field">
+        <label for="configMoneda">Moneda</label>
+        <input id="configMoneda" type="text">
+      </div>
+
+      <div class="field">
+        <label for="configHorasMinimas">Horas mínimas</label>
+        <input id="configHorasMinimas" type="number" step="1">
+      </div>
+
+      <div class="field">
+        <label for="configEmpresaDefecto">Empresa por defecto</label>
+        <select id="configEmpresaDefecto"></select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="configGuardarPantalla()">Guardar configuración</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Empresas</h3>
+
+    <div class="grid">
+      <div class="field">
+        <label for="clienteEmpresa">Empresa</label>
+        <input id="clienteEmpresa" type="text" placeholder="Multiforte">
+      </div>
+
+      <div class="field">
+        <label for="clienteTarifaHora">Tarifa hora</label>
+        <input id="clienteTarifaHora" type="number" step="0.01" placeholder="Usa la general si está vacío">
+      </div>
+
+      <div class="field">
+        <label for="clienteTelefono">WhatsApp</label>
+        <input id="clienteTelefono" type="text">
+      </div>
+
+      <div class="field">
+        <label for="clienteEmail">Email</label>
+        <input id="clienteEmail" type="email">
+      </div>
+
+      <div class="field">
+        <label for="clienteContacto">Contacto</label>
+        <input id="clienteContacto" type="text">
+      </div>
+
+      <div class="field field-full">
+        <label for="clienteNotas">Notas</label>
+        <textarea id="clienteNotas"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="clienteGuardarPantalla()">Guardar empresa</button>
+      <button type="button" class="btn btn-secondary" onclick="clienteLimpiarFormulario()">Limpiar</button>
+    </div>
+
+    <div id="clientesListado" class="config-list"></div>
+  </div>
+</section>

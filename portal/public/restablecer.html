@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>Contraseña nueva · Gestor de incidencias</title>
+  <link rel="icon" href="/img/monograma.svg">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/portal.css">
+</head>
+
+<body>
+  <main class="login">
+    <div class="login-brand">
+      <img src="/img/monograma.svg" alt="">
+      <div>
+        <strong>Contraseña nueva</strong>
+        <span>Gestor de incidencias</span>
+      </div>
+    </div>
+
+    <form id="formRestablecer" class="panel">
+      <div class="grid">
+        <div class="field">
+          <label for="nueva">Contraseña nueva (mínimo 10 caracteres)</label>
+          <input id="nueva" type="password" autocomplete="new-password" minlength="10" required autofocus>
+        </div>
+
+        <div class="field">
+          <label for="repetida">Repítela</label>
+          <input id="repetida" type="password" autocomplete="new-password" minlength="10" required>
+        </div>
+      </div>
+
+      <div id="mensaje" class="message hidden"></div>
+
+      <div class="actions">
+        <button type="submit" id="boton" class="btn btn-primary">Guardar contraseña</button>
+      </div>
+
+      <a class="login-link" href="/login">Volver a la pantalla de entrada</a>
+    </form>
+  </main>
+
+  <script>
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const mensaje = document.getElementById('mensaje');
+
+    function avisar(texto, tipo) {
+      mensaje.textContent = texto;
+      mensaje.className = 'message ' + tipo;
+    }
+
+    if (!token) {
+      avisar('Falta el enlace de recuperación. Pide uno nuevo desde la pantalla de entrada.', 'error');
+      document.getElementById('boton').disabled = true;
+    }
+
+    document.getElementById('formRestablecer').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const nueva = document.getElementById('nueva').value;
+      if (nueva !== document.getElementById('repetida').value) {
+        avisar('Las dos contraseñas no coinciden.', 'error');
+        return;
+      }
+
+      const boton = document.getElementById('boton');
+      boton.disabled = true;
+
+      try {
+        const respuesta = await fetch('/api/restablecer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: token, nueva: nueva })
+        });
+        const datos = await respuesta.json().catch(function() { return {}; });
+
+        if (respuesta.ok) {
+          avisar('Contraseña cambiada. Te llevamos a la pantalla de entrada...', 'ok');
+          setTimeout(function() { location.href = '/login'; }, 1800);
+          return;
+        }
+        avisar(datos.error || 'No se ha podido cambiar la contraseña.', 'error');
+      } catch (err) {
+        avisar('No hay conexión con el servidor.', 'error');
+      }
+      boton.disabled = false;
+    });
+  </script>
+</body>
+</html>

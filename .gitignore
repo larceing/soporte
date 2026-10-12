@@ -1,0 +1,9 @@
+.env
+# Lo genera el instalador: contiene credenciales y la sal criptográfica.
+config/config_inc.php
+backups/
+# Volcado de la hoja de Google para la migración: datos reales de clientes.
+migracion/
+# Ejemplos y notas sueltas con claves
+EXAMPLE_*.TXT
+*.local.txt

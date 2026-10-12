@@ -1,0 +1,293 @@
+<script>
+let homeEstado = null;
+let homeConfig = null;
+let homeClientes = [];
+let homeReloj = null;
+
+function homeCargarEstado() {
+  homePintarFecha();
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      if (!data) {
+        coreMensaje('mensajeHome', 'El servidor no devolvió estado.', 'error');
+        return;
+      }
+
+      homePintarEstado(data);
+    })
+    .withFailureHandler(coreManejarError('mensajeHome'))
+    .homeObtenerEstado();
+
+  google.script.run
+    .withSuccessHandler(function(config) {
+      homeConfig = config || null;
+      coreMoneda = (config && config.moneda) || '€';
+      homeActualizarReloj();
+    })
+    .withFailureHandler(coreManejarError('mensajeHome'))
+    .configObtener();
+
+  coreCargarEmpresas([], false, function(empresas) {
+    homeClientes = empresas;
+    homeActualizarReloj();
+  });
+
+  homeCargarResumen();
+}
+
+function homePintarFecha() {
+  const el = document.getElementById('homeFecha');
+  if (!el) return;
+
+  el.textContent = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long'
+  });
+}
+
+function homePintarEstado(data) {
+  const box = document.getElementById('estadoActual');
+
+  homeEstado = data;
+
+  if (homeReloj) {
+    clearInterval(homeReloj);
+    homeReloj = null;
+  }
+
+  if (data.activa && data.peticion) {
+    const inicio = new Date(data.peticion.inicio);
+    const desde = isNaN(inicio.getTime()) ? '' : ' · desde las ' + coreHora(inicio);
+
+    box.innerHTML = `
+      <div class="run-card">
+        <div class="run-top">
+          <span class="run-dot"></span>
+          <span class="run-label">En curso</span>
+        </div>
+        <div id="homeTimer" class="run-timer" aria-label="Tiempo transcurrido">00:00:00</div>
+        <div class="run-text">
+          <div class="run-title">${coreEscapeHtml(data.peticion.peticion || 'Sin descripción')}</div>
+          <div class="run-sub">${coreEscapeHtml((data.peticion.empresa || 'Sin empresa') + desde)}</div>
+        </div>
+        <div class="run-money">
+          <span id="homeHoras"></span>
+          <strong id="homeImporte"></strong>
+        </div>
+        <button type="button" id="btnParar" class="btn btn-run btn-xl" onclick="homePararTrabajo()">
+          <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>
+          <span>Parar y guardar</span>
+        </button>
+      </div>
+    `;
+
+    homeActualizarReloj();
+    homeReloj = setInterval(homeActualizarReloj, 1000);
+  } else {
+    box.innerHTML = `
+      <div class="idle-card">
+        <div>
+          <div class="idle-label">Sin petición activa</div>
+          <div class="idle-title">Disponible</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-xl" onclick="coreMostrarVista('nueva')">
+          <svg class="solid" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg>
+          <span>Empezar petición</span>
+        </button>
+      </div>
+    `;
+  }
+}
+
+function homeActualizarReloj() {
+  if (!homeEstado || !homeEstado.activa || !homeEstado.peticion) return;
+
+  const timer = document.getElementById('homeTimer');
+  if (!timer) return;
+
+  const inicio = new Date(homeEstado.peticion.inicio);
+  if (isNaN(inicio.getTime())) return;
+
+  const segundos = Math.max(0, Math.floor((Date.now() - inicio.getTime()) / 1000));
+
+  timer.textContent =
+    coreDosDigitos(Math.floor(segundos / 3600)) + ':' +
+    coreDosDigitos(Math.floor(segundos / 60) % 60) + ':' +
+    coreDosDigitos(segundos % 60);
+
+  if (!homeConfig) return;
+
+  // Mismo cálculo que hace el servidor al parar: horas completas con mínimo.
+  const minutos = Math.max(1, Math.ceil(segundos / 60));
+  const horas = Math.max(Number(homeConfig.horasMinimas || 1), Math.ceil(minutos / 60));
+  const tarifa = homeTarifaEmpresa(homeEstado.peticion.empresa);
+
+  document.getElementById('homeHoras').textContent =
+    horas + ' h facturables · ' + tarifa + ' ' + coreMoneda + '/h';
+  document.getElementById('homeImporte').textContent = coreDinero(horas * tarifa);
+}
+
+function homeTarifaEmpresa(empresa) {
+  const buscada = String(empresa || '').trim().toLowerCase();
+  const cliente = homeClientes.find(function(item) {
+    return String(item.empresa || '').trim().toLowerCase() === buscada;
+  });
+
+  if (cliente && Number(cliente.tarifaHora || 0) > 0) {
+    return Number(cliente.tarifaHora);
+  }
+
+  return Number((homeConfig && homeConfig.tarifaHora) || 0);
+}
+
+function homeCargarResumen() {
+  google.script.run
+    .withSuccessHandler(homePintarResumen)
+    .withFailureHandler(coreManejarError('mensajeHome'))
+    .historialObtenerPeticiones({});
+}
+
+function homePintarResumen(items) {
+  const box = document.getElementById('homeResumen');
+  if (!box) return;
+
+  items = items || [];
+
+  const hoy = new Date();
+  let horasMes = 0;
+  let importeMes = 0;
+  let pendiente = 0;
+
+  items.forEach(function(r) {
+    const importe = Number(r.importe || 0);
+
+    if (r.estadoCobro === 'PENDIENTE') pendiente += importe;
+
+    if (r.estado !== 'CERRADA') return;
+
+    const inicio = coreParseFecha(r.inicio);
+    if (!inicio) return;
+    if (inicio.getMonth() !== hoy.getMonth() || inicio.getFullYear() !== hoy.getFullYear()) return;
+
+    importeMes += importe;
+    if (r.tipo !== 'UNICO') horasMes += Number(r.horasFacturadas || 0);
+  });
+
+  const recientes = items.slice(0, 5);
+
+  box.innerHTML = `
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Horas este mes</div>
+        <div class="stat-value">${coreEscapeHtml(horasMes)} h</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Pendiente de cobro</div>
+        <div class="stat-value">${coreEscapeHtml(coreDinero(pendiente))}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Trabajado este mes</div>
+        <div class="stat-value">${coreEscapeHtml(coreDinero(importeMes))}</div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h3>Últimas peticiones</h3>
+      <button type="button" class="link-btn" onclick="coreMostrarVista('historial')">Ver todas</button>
+    </div>
+
+    ${
+      recientes.length
+        ? '<div class="pet-list">' + recientes.map(function(r) {
+            return corePeticionHtml(r, 'homeAbrirPeticion');
+          }).join('') + '</div>'
+        : '<div class="empty">Todavía no hay peticiones registradas.</div>'
+    }
+  `;
+}
+
+function homeAbrirPeticion(id) {
+  coreMostrarVista('historial');
+  historialEditar(id);
+}
+
+function nuevaPreparar() {
+  coreCargarEmpresas(['inicioEmpresa'], false, function() {
+    const select = document.getElementById('inicioEmpresa');
+
+    if (select && !select.value && homeConfig && homeConfig.empresaDefecto) {
+      select.value = homeConfig.empresaDefecto;
+    }
+  });
+
+  const activa = Boolean(homeEstado && homeEstado.activa);
+  document.getElementById('btnEmpezar').disabled = activa;
+
+  if (activa) {
+    coreMensaje('mensajeNueva', 'Ya hay una petición en curso. Párala desde Inicio antes de empezar otra.', 'error');
+  }
+}
+
+function homeEmpezarTrabajo() {
+  const datos = {
+    empresa: coreGetValue('inicioEmpresa'),
+    peticion: coreGetValue('inicioPeticionTexto'),
+    observaciones: coreGetValue('inicioObservaciones')
+  };
+
+  const boton = document.getElementById('btnEmpezar');
+  boton.disabled = true;
+
+  coreMensaje('mensajeNueva', 'Guardando inicio...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function() {
+      boton.disabled = false;
+      homeLimpiarInicio();
+      coreMostrarVista('home');
+      coreMensaje('mensajeHome', 'Petición iniciada correctamente.', 'ok');
+    })
+    .withFailureHandler(function(error) {
+      boton.disabled = false;
+      coreManejarError('mensajeNueva')(error);
+    })
+    .homeEmpezarPeticion(datos);
+}
+
+function homePararTrabajo() {
+  document.getElementById('homeConfirmacion').classList.remove('hidden');
+}
+
+function homeCerrarConfirmacion() {
+  document.getElementById('homeConfirmacion').classList.add('hidden');
+}
+
+function homeEjecutarParadaTrabajo() {
+  homeCerrarConfirmacion();
+
+  const boton = document.getElementById('btnParar');
+  if (boton) boton.disabled = true;
+
+  coreMensaje('mensajeHome', 'Cerrando petición...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function() {
+      coreMensaje('mensajeHome', 'Petición cerrada correctamente.', 'ok');
+      homeCargarEstado();
+    })
+    .withFailureHandler(function(error) {
+      if (boton) boton.disabled = false;
+      coreManejarError('mensajeHome')(error);
+    })
+    .homePararPeticion();
+}
+
+function homeLimpiarInicio() {
+  ['inicioEmpresa', 'inicioPeticionTexto', 'inicioObservaciones'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+</script>

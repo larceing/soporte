@@ -1,0 +1,129 @@
+<script>
+function configCargar() {
+  google.script.run
+    .withSuccessHandler(function(config) {
+      document.getElementById('configTarifaHora').value = config.tarifaHora;
+      document.getElementById('configMoneda').value = config.moneda;
+      document.getElementById('configHorasMinimas').value = config.horasMinimas;
+      coreCargarEmpresas(['configEmpresaDefecto'], true, function() {
+        const select = document.getElementById('configEmpresaDefecto');
+        if (select && select.options.length) {
+          select.options[0].textContent = 'Sin empresa por defecto';
+          select.value = config.empresaDefecto || '';
+        }
+      });
+    })
+    .withFailureHandler(coreManejarError('mensajeConfig'))
+    .configObtener();
+
+  clientesCargarListado();
+}
+
+function configGuardarPantalla() {
+  const datos = {
+    tarifaHora: coreGetValue('configTarifaHora'),
+    moneda: coreGetValue('configMoneda'),
+    horasMinimas: coreGetValue('configHorasMinimas'),
+    empresaDefecto: coreGetValue('configEmpresaDefecto')
+  };
+
+  google.script.run
+    .withSuccessHandler(function() {
+      coreMensaje('mensajeConfig', 'Configuración guardada correctamente.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeConfig'))
+    .configGuardar(datos);
+}
+
+function clienteGuardarPantalla() {
+  const datos = {
+    empresa: coreGetValue('clienteEmpresa'),
+    tarifaHora: coreGetValue('clienteTarifaHora'),
+    telefonoWhatsapp: coreGetValue('clienteTelefono'),
+    email: coreGetValue('clienteEmail'),
+    contacto: coreGetValue('clienteContacto'),
+    notas: coreGetValue('clienteNotas')
+  };
+
+  google.script.run
+    .withSuccessHandler(function(items) {
+      clientePintarListado(items);
+      coreCargarEmpresas(['configEmpresaDefecto'], true, function() {
+        const select = document.getElementById('configEmpresaDefecto');
+        if (select && select.options.length) {
+          select.options[0].textContent = 'Sin empresa por defecto';
+        }
+      });
+      clienteLimpiarFormulario();
+      coreMensaje('mensajeConfig', 'Empresa guardada correctamente.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeConfig'))
+    .clientesGuardar(datos);
+}
+
+function clientesCargarListado() {
+  google.script.run
+    .withSuccessHandler(clientePintarListado)
+    .withFailureHandler(coreManejarError('mensajeConfig'))
+    .clientesListar();
+}
+
+function clientePintarListado(items) {
+  const box = document.getElementById('clientesListado');
+  if (!box) return;
+
+  if (!items || !items.length) {
+    box.innerHTML = '<div class="config-empty">No hay empresas creadas.</div>';
+    return;
+  }
+
+  box.innerHTML = items.map(function(item) {
+    const tarifa = Number(item.tarifaHora || 0) > 0
+      ? item.tarifaHora + ' €/h'
+      : 'Tarifa general';
+
+    return `
+      <button class="config-client-row" onclick="clienteEditar('${encodeURIComponent(item.empresa)}')">
+        <span>${coreEscapeHtml(item.empresa)}</span>
+        <strong>${coreEscapeHtml(tarifa)}</strong>
+      </button>
+    `;
+  }).join('');
+}
+
+function clienteEditar(empresaCodificada) {
+  const empresa = decodeURIComponent(empresaCodificada || '');
+
+  google.script.run
+    .withSuccessHandler(function(items) {
+      const item = (items || []).find(function(cliente) {
+        return cliente.empresa === empresa;
+      });
+
+      if (!item) return;
+
+      document.getElementById('clienteEmpresa').value = item.empresa;
+      document.getElementById('clienteTarifaHora').value = item.tarifaHora || '';
+      document.getElementById('clienteTelefono').value = item.telefonoWhatsapp || '';
+      document.getElementById('clienteEmail').value = item.email || '';
+      document.getElementById('clienteContacto').value = item.contacto || '';
+      document.getElementById('clienteNotas').value = item.notas || '';
+    })
+    .withFailureHandler(coreManejarError('mensajeConfig'))
+    .clientesListar();
+}
+
+function clienteLimpiarFormulario() {
+  [
+    'clienteEmpresa',
+    'clienteTarifaHora',
+    'clienteTelefono',
+    'clienteEmail',
+    'clienteContacto',
+    'clienteNotas'
+  ].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+</script>

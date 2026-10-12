@@ -1,0 +1,75 @@
+name: gestor-incidencias
+
+services:
+  web:
+    build: ./docker/web
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    volumes:
+      # Única parte de MantisBT que vive fuera de la imagen: la configuración.
+      - ./config:/var/www/html/config
+      - ./plugins/HenryArce:/var/www/html/plugins/HenryArce
+      - ./scripts:/var/www/scripts:ro
+    environment:
+      SEED_DEV_USERS: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Aplicación propia: la única pantalla de trabajo. Habla con MantisBT (web)
+  # por su API REST y guarda lo suyo en tablas ha_* de la misma base de datos.
+  portal:
+    build: ./portal
+    command: node --watch server.js
+    ports:
+      - "127.0.0.1:${PORTAL_PORT:-8090}:3000"
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      MANTIS_URL: http://web
+      MANTIS_API_TOKEN: ${MANTIS_API_TOKEN}
+      MANTIS_PROJECT: SPSIL
+      PORTAL_ADMIN_USER: ${PORTAL_ADMIN_USER}
+      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD}
+      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:-}
+      PORTAL_URL: ${PORTAL_URL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      CORREO_REMITENTE: ${CORREO_REMITENTE:-}
+    volumes:
+      - ./portal/server.js:/app/server.js:ro
+      - ./portal/src:/app/src:ro
+      - ./portal/public:/app/public:ro
+      - ./portal/scripts:/app/scripts:ro
+      - ./migracion:/migracion:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Captura todo el correo que envía MantisBT; no sale nada a internet.
+  mail:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:${MAIL_UI_PORT:-8025}:8025"
+
+volumes:
+  db_data:

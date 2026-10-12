@@ -1,0 +1,384 @@
+<style>
+.historial-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.historial-title {
+  margin-bottom: 20px;
+}
+
+.historial-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.historial-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.historial-filtros,
+.historial-actions,
+.historial-editor-actions,
+.historial-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.historial-filtros {
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.historial-actions {
+  margin-bottom: 20px;
+}
+
+.historial-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.historial-btn-refresh,
+.historial-btn-save {
+  background: var(--primary);
+}
+
+.historial-btn-back,
+.historial-btn-edit {
+  background: var(--secondary);
+}
+
+.historial-btn-clear {
+  background: #475569;
+}
+
+.historial-btn-delete {
+  background: #991b1b;
+}
+
+.historial-btn-delete:hover {
+  background: #b91c1c;
+}
+
+.historial-btn-edit {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.historial-box {
+  margin-top: 20px;
+}
+
+.historial-scroll {
+  overflow-x: auto;
+}
+
+.historial-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.historial-table th,
+.historial-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.historial-table th {
+  color: var(--muted);
+  background: var(--surface-soft);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.historial-badge {
+  display: inline-block;
+  min-width: 86px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.historial-badge-cobrado {
+  background: #e8f7ef;
+  color: #135c3f;
+}
+
+.historial-badge-pendiente {
+  background: #fff4dd;
+  color: #8a5a17;
+}
+
+.historial-badge-neutral {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.historial-editor {
+  margin-top: 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.historial-editor h3 {
+  margin-top: 0;
+  font-size: 22px;
+}
+
+.historial-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.historial-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.historial-field input,
+.historial-field select,
+.historial-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.historial-field textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.historial-full {
+  grid-column: 1 / -1;
+}
+
+.historial-editor-actions {
+  margin-top: 20px;
+}
+
+.historial-confirm {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 32, 51, 0.46);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.historial-confirm-box {
+  width: 460px;
+  max-width: 92%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 22px 60px rgba(22, 42, 74, 0.22);
+}
+
+.historial-confirm-box h3 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 24px;
+}
+
+.historial-confirm-box p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.historial-confirm-actions {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 24px;
+}
+
+.historial-row-no-cobrar td {
+  color: #8a5a17;
+  opacity: 0.85;
+}
+
+.historial-row-en-curso td {
+  color: var(--primary);
+  opacity: 0.9;
+}
+
+.historial-row-no-cobrar td:nth-child(8),
+.historial-row-en-curso td:nth-child(8) {
+  font-weight: 900;
+}
+
+@media (min-width: 800px) {
+  .historial-filtros {
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .historial-actions {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  .historial-editor-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .historial-editor-actions {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .historial-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .historial-title h2 {
+    font-size: 26px;
+  }
+
+  .historial-filtros,
+  .historial-actions,
+  .historial-editor-grid,
+  .historial-editor-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .historial-btn {
+    min-height: 72px;
+    font-size: 17px;
+    border-radius: 16px;
+  }
+
+  .historial-btn-edit {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  .historial-field input,
+  .historial-field select,
+  .historial-field textarea {
+    min-height: 58px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .historial-scroll {
+    overflow-x: auto;
+  }
+
+  .historial-table {
+    min-width: 980px;
+    font-size: 14px;
+  }
+
+  .historial-confirm {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .historial-confirm-box {
+    width: 100%;
+    max-width: none;
+    border-radius: 20px;
+    padding: 22px;
+  }
+
+  .historial-confirm-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mobile-ui .historial-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .historial-filtros,
+.mobile-ui .historial-actions,
+.mobile-ui .historial-editor-grid,
+.mobile-ui .historial-editor-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .historial-btn {
+  min-height: 72px;
+  font-size: 17px;
+  border-radius: 16px;
+}
+
+.mobile-ui .historial-btn-edit {
+  min-height: 48px;
+  font-size: 13px;
+}
+
+.mobile-ui .historial-field input,
+.mobile-ui .historial-field select,
+.mobile-ui .historial-field textarea {
+  min-height: 58px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .historial-scroll {
+  overflow-x: auto;
+}
+
+.mobile-ui .historial-table {
+  min-width: 980px;
+  font-size: 14px;
+}
+
+.mobile-ui .historial-confirm {
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.mobile-ui .historial-confirm-box {
+  width: 100%;
+  max-width: none;
+  border-radius: 20px;
+  padding: 22px;
+}
+
+.mobile-ui .historial-confirm-actions {
+  grid-template-columns: 1fr;
+}
+</style>

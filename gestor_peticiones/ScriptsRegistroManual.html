@@ -1,0 +1,38 @@
+<script>
+function manualPreparar() {
+  coreCargarEmpresas(['manualEmpresa'], false);
+}
+
+function manualGuardar() {
+  const datos = {
+    empresa: coreGetValue('manualEmpresa'),
+    peticion: coreGetValue('manualPeticion'),
+    inicio: coreGetValue('manualInicio'),
+    fin: coreGetValue('manualFin'),
+    observaciones: coreGetValue('manualObservaciones')
+  };
+
+  coreMensaje('mensajeManual', 'Guardando registro manual...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(id) {
+      coreMensaje('mensajeManual', 'Registro creado: ' + id, 'ok');
+      manualLimpiar();
+    })
+    .withFailureHandler(coreManejarError('mensajeManual'))
+    .manualCrearPeticion(datos);
+}
+
+function manualLimpiar() {
+  [
+    'manualEmpresa',
+    'manualPeticion',
+    'manualInicio',
+    'manualFin',
+    'manualObservaciones'
+  ].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+</script>

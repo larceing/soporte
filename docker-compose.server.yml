@@ -1,0 +1,79 @@
+name: incidencias
+
+# Producción. Mismo patrón que el resto de apps del servidor: sin puertos
+# publicados. Nginx Proxy Manager llega solo al portal (incidencias-web) por
+# proxy_default; MantisBT y la base de datos quedan en la red interna.
+services:
+  incidencias-web:
+    image: incidencias-portal:latest
+    build: ./portal
+    container_name: incidencias-web
+    restart: unless-stopped
+    environment:
+      PORT: "80"
+      DB_HOST: incidencias-db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      MANTIS_URL: http://incidencias-mantis
+      MANTIS_API_TOKEN: ${MANTIS_API_TOKEN:-}
+      MANTIS_PROJECT: SPSIL
+      PORTAL_ADMIN_USER: ${PORTAL_ADMIN_USER}
+      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD}
+      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:-}
+      PORTAL_URL: ${PORTAL_URL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      CORREO_REMITENTE: ${CORREO_REMITENTE:-}
+      PORTAL_COOKIE_SECURE: "1"
+    volumes:
+      - ./migracion:/migracion:ro
+    depends_on:
+      incidencias-db:
+        condition: service_healthy
+    networks:
+      - internal
+      - proxy_default
+
+  incidencias-mantis:
+    image: incidencias-mantis:latest
+    build: ./docker/web
+    container_name: incidencias-mantis
+    restart: unless-stopped
+    volumes:
+      - ./config:/var/www/html/config
+      - ./plugins/HenryArce:/var/www/html/plugins/HenryArce
+      - ./scripts:/var/www/scripts:ro
+      - ./docker/web/produccion.conf:/etc/apache2/conf-enabled/zz-produccion.conf:ro
+    depends_on:
+      incidencias-db:
+        condition: service_healthy
+    networks:
+      - internal
+
+  incidencias-db:
+    image: mariadb:11.4
+    container_name: incidencias-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - incidencias-db-data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  incidencias-db-data:
+
+networks:
+  internal:
+  proxy_default:
+    external: true

@@ -1,0 +1,56 @@
+<section id="facturacion" class="view hidden">
+  <header class="view-head">
+    <h2>Cobros</h2>
+    <p>Genera el resumen de servicios en PDF. Solo se incluyen peticiones cerradas.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Sección de cobros">
+    <button type="button" data-nav="cobro" onclick="coreMostrarVista('cobro')">Calcular</button>
+    <button type="button" data-nav="pagos" onclick="coreMostrarVista('pagos')">Cobrar</button>
+    <button type="button" data-nav="facturacion" onclick="coreMostrarVista('facturacion')">Resumen</button>
+    <button type="button" data-nav="documentos" onclick="coreMostrarVista('documentos')">Facturas</button>
+  </div>
+
+  <div class="panel">
+    <div class="grid grid-3">
+      <div class="field">
+        <label for="factDesde">Desde</label>
+        <input id="factDesde" type="date">
+      </div>
+
+      <div class="field">
+        <label for="factHasta">Hasta</label>
+        <input id="factHasta" type="date">
+      </div>
+
+      <div class="field">
+        <label for="factEmpresa">Empresa</label>
+        <select id="factEmpresa" onchange="pagosMostrarUltimoCobro('factUltimoCobro', 'factEmpresa', 'factDesde')"></select>
+      </div>
+
+      <div class="field">
+        <label for="factNumero">Nº de documento (opcional)</label>
+        <input id="factNumero" type="text" placeholder="2026-014">
+      </div>
+
+      <div class="field field-check">
+        <label for="factDetalle">
+          <input id="factDetalle" type="checkbox">
+          <span>Incluir la descripción de cada petición</span>
+        </label>
+      </div>
+    </div>
+
+    <div id="factUltimoCobro" class="last-pay hidden"></div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" onclick="facturacionVistaPrevia()">Vista previa</button>
+      <button type="button" class="btn btn-primary" onclick="facturacionGenerarPdf()">Generar PDF</button>
+      <button type="button" class="btn btn-secondary" onclick="facturacionWhatsapp()">Enviar por WhatsApp</button>
+    </div>
+
+    <div id="mensajeFacturacion" class="message hidden"></div>
+  </div>
+
+  <div id="factPreview" class="fact-preview hidden"></div>
+</section>

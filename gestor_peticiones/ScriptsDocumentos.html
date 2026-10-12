@@ -1,0 +1,202 @@
+<script>
+const DOCUMENTOS_TIPOS = {
+  PROFORMA: 'Proforma',
+  FACTURA: 'Factura',
+  RECTIFICATIVA: 'Rectificativa'
+};
+
+const DOCUMENTOS_ESTADOS = {
+  PENDIENTE: { texto: 'Pendiente de confirmar', clase: 'badge-pend' },
+  FACTURADA: { texto: 'Facturada', clase: 'badge-neutral' },
+  ANULADA: { texto: 'Anulada', clase: 'badge-neutral' },
+  EMITIDA: { texto: 'Emitida', clase: 'badge-run' },
+  COBRADA: { texto: 'Cobrada', clase: 'badge-ok' },
+  RECTIFICADA: { texto: 'Rectificada', clase: 'badge-neutral' }
+};
+
+// Textos del diálogo de confirmación por acción.
+const DOCUMENTOS_ACCIONES = {
+  facturar: {
+    titulo: 'Emitir factura',
+    texto: 'Se asignará el siguiente número de factura a {codigo}. Una factura emitida no se puede editar ni borrar; solo se corrige con una rectificativa.',
+    boton: 'Emitir factura',
+    servidor: 'documentosEmitirFactura',
+    hecho: 'Factura emitida: '
+  },
+  anular: {
+    titulo: 'Anular proforma',
+    texto: 'La proforma {codigo} quedará anulada y sus peticiones volverán a estar disponibles.',
+    boton: 'Anular proforma',
+    servidor: 'documentosAnularProforma',
+    hecho: 'Proforma anulada.'
+  },
+  cobrar: {
+    titulo: 'Registrar cobro',
+    texto: 'Se registrará el cobro de {codigo} y sus peticiones quedarán marcadas como cobradas.',
+    boton: 'Registrar cobro',
+    servidor: 'documentosRegistrarCobro',
+    hecho: 'Cobro registrado.'
+  },
+  rectificar: {
+    titulo: 'Rectificar factura',
+    texto: 'Se emitirá una factura rectificativa que anula {codigo} por su importe total. Sus peticiones volverán a estar disponibles.',
+    boton: 'Emitir rectificativa',
+    servidor: 'documentosRectificar',
+    hecho: 'Rectificativa emitida: '
+  }
+};
+
+let documentosAccionPendiente = null;
+
+function documentosPreparar() {
+  coreCargarEmpresas(['docEmpresa'], false);
+  pagosMostrarUltimoCobro('docUltimoCobro', 'docEmpresa', 'docDesde');
+
+  const hasta = document.getElementById('docHasta');
+  if (hasta && !hasta.value) {
+    hasta.value = new Date().toISOString().slice(0, 10);
+  }
+
+  documentosCargar();
+}
+
+function documentosCargar() {
+  google.script.run
+    .withSuccessHandler(documentosPintar)
+    .withFailureHandler(coreManejarError('mensajeDocumentos'))
+    .documentosListar();
+}
+
+function documentosPintar(items) {
+  const box = document.getElementById('documentosListado');
+  if (!box) return;
+
+  if (!items || !items.length) {
+    box.innerHTML = '<div class="empty">Todavía no hay proformas ni facturas.</div>';
+    return;
+  }
+
+  box.innerHTML = '<div class="pet-list">' + items.map(documentosHtml).join('') + '</div>';
+}
+
+function documentosHtml(doc) {
+  const estado = DOCUMENTOS_ESTADOS[doc.estado] || { texto: doc.estado, clase: 'badge-neutral' };
+  const id = coreEscapeHtml(doc.id);
+  const acciones = [];
+
+  if (doc.pdfUrl) {
+    acciones.push(`<a class="btn btn-secondary btn-sm" href="${coreEscapeHtml(doc.pdfUrl)}" target="_blank" rel="noopener">Ver PDF</a>`);
+  }
+
+  if (doc.tipo === 'PROFORMA' && doc.estado === 'PENDIENTE') {
+    acciones.push(`<button type="button" class="btn btn-primary btn-sm" onclick="documentosAbrirDialogo('facturar', '${id}')">Emitir factura</button>`);
+    acciones.push(`<button type="button" class="btn btn-secondary btn-sm" onclick="documentosAbrirDialogo('anular', '${id}')">Anular</button>`);
+  }
+
+  if (doc.tipo === 'FACTURA' && doc.estado === 'EMITIDA') {
+    acciones.push(`<button type="button" class="btn btn-primary btn-sm" onclick="documentosAbrirDialogo('cobrar', '${id}')">Registrar cobro</button>`);
+    acciones.push(`<button type="button" class="btn btn-danger btn-sm" onclick="documentosAbrirDialogo('rectificar', '${id}')">Rectificar</button>`);
+  }
+
+  return `
+    <div class="doc" data-doc="${id}" data-codigo="${coreEscapeHtml(doc.codigo)}">
+      <div class="doc-head">
+        <span class="doc-code">${coreEscapeHtml(doc.codigo)}</span>
+        <span class="badge ${estado.clase}">${coreEscapeHtml((DOCUMENTOS_TIPOS[doc.tipo] || doc.tipo) + ' · ' + estado.texto)}</span>
+        <span class="doc-total">${coreEscapeHtml(coreDinero(doc.total))}</span>
+      </div>
+      <div class="doc-sub">
+        ${coreEscapeHtml(doc.empresa)} · emitida el ${coreEscapeHtml(doc.fecha)}
+        · periodo ${coreEscapeHtml(doc.periodoDesde)} – ${coreEscapeHtml(doc.periodoHasta)}
+        · ${coreEscapeHtml(doc.servicios)} ${doc.servicios === 1 ? 'servicio' : 'servicios'}
+        · base ${coreEscapeHtml(coreDinero(doc.base))}
+      </div>
+      ${acciones.length ? '<div class="doc-actions">' + acciones.join('') + '</div>' : ''}
+    </div>
+  `;
+}
+
+function documentosCrearProforma() {
+  const datos = {
+    empresa: coreGetValue('docEmpresa'),
+    desde: coreGetValue('docDesde'),
+    hasta: coreGetValue('docHasta')
+  };
+
+  const boton = document.getElementById('docBtnProforma');
+  boton.disabled = true;
+
+  coreMensaje('mensajeDocumentos', 'Creando proforma...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(doc) {
+      boton.disabled = false;
+      coreMensaje('mensajeDocumentos', 'Proforma creada: ' + doc.codigo, 'ok');
+      documentosCargar();
+    })
+    .withFailureHandler(function(error) {
+      boton.disabled = false;
+      coreManejarError('mensajeDocumentos')(error);
+    })
+    .documentosCrearProforma(datos);
+}
+
+function documentosAbrirDialogo(accion, id) {
+  const config = DOCUMENTOS_ACCIONES[accion];
+  const tarjeta = document.querySelector('.doc[data-doc="' + id + '"]');
+  const codigo = tarjeta ? tarjeta.getAttribute('data-codigo') : id;
+
+  documentosAccionPendiente = { accion: accion, id: id };
+
+  document.getElementById('documentosDialogoTitulo').textContent = config.titulo;
+  document.getElementById('documentosDialogoTexto').textContent = config.texto.replace('{codigo}', codigo);
+  document.getElementById('documentosDialogoConfirmar').textContent = config.boton;
+  document.getElementById('documentosDialogoConfirmar').disabled = false;
+  document.getElementById('documentosMotivo').value = '';
+  document.getElementById('documentosDialogoMotivo').classList.toggle('hidden', accion !== 'rectificar');
+  document.getElementById('mensajeDocumentosDialogo').classList.add('hidden');
+  document.getElementById('documentosDialogo').classList.remove('hidden');
+}
+
+function documentosCerrarDialogo() {
+  documentosAccionPendiente = null;
+  document.getElementById('documentosDialogo').classList.add('hidden');
+}
+
+function documentosConfirmarDialogo() {
+  if (!documentosAccionPendiente) return;
+
+  const pendiente = documentosAccionPendiente;
+  const config = DOCUMENTOS_ACCIONES[pendiente.accion];
+  const boton = document.getElementById('documentosDialogoConfirmar');
+  const motivo = coreGetValue('documentosMotivo');
+
+  if (pendiente.accion === 'rectificar' && !motivo) {
+    coreMensaje('mensajeDocumentosDialogo', 'Indica el motivo de la rectificación.', 'error');
+    return;
+  }
+
+  boton.disabled = true;
+
+  const llamada = google.script.run
+    .withSuccessHandler(function(resultado) {
+      documentosCerrarDialogo();
+      documentosCargar();
+      coreMensaje(
+        'mensajeDocumentos',
+        config.hecho + (resultado && resultado.codigo ? resultado.codigo : ''),
+        'ok'
+      );
+    })
+    .withFailureHandler(function(error) {
+      boton.disabled = false;
+      coreManejarError('mensajeDocumentosDialogo')(error);
+    });
+
+  if (pendiente.accion === 'rectificar') {
+    llamada[config.servidor](pendiente.id, motivo);
+  } else {
+    llamada[config.servidor](pendiente.id);
+  }
+}
+</script>

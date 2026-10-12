@@ -1,0 +1,228 @@
+<style>
+.pagos-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.pagos-title {
+  margin-bottom: 20px;
+}
+
+.pagos-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.pagos-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.pagos-grid,
+.pagos-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.pagos-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.pagos-field input,
+.pagos-field select,
+.pagos-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.pagos-field textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.pagos-full {
+  grid-column: 1 / -1;
+}
+
+.pagos-actions {
+  margin-top: 20px;
+  gap: 14px;
+}
+
+.pagos-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.pagos-btn-save {
+  background: var(--ok);
+}
+
+.pagos-btn-main {
+  background: var(--primary);
+}
+
+.pagos-btn-back {
+  background: var(--secondary);
+}
+
+.pagos-list {
+  margin-top: 24px;
+}
+
+.pagos-result {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.pagos-total-label {
+  color: var(--muted);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 13px;
+}
+
+.pagos-total {
+  margin-top: 8px;
+  color: var(--heading);
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.pagos-meta {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.pagos-subtitle {
+  margin: 0 0 12px;
+  color: var(--heading);
+  font-size: 18px;
+}
+
+.pagos-empty {
+  color: var(--muted);
+}
+
+.pagos-table-wrap {
+  overflow-x: auto;
+}
+
+.pagos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.pagos-table th,
+.pagos-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pagos-table th {
+  color: var(--muted);
+  background: var(--surface-soft);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+@media (min-width: 800px) {
+  .pagos-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pagos-actions {
+    grid-template-columns: 2fr 2fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .pagos-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .pagos-grid,
+  .pagos-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pagos-field input,
+  .pagos-field select,
+  .pagos-field textarea {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .pagos-btn {
+    min-height: 78px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+
+  .pagos-table {
+    min-width: 760px;
+  }
+}
+
+.mobile-ui .pagos-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .pagos-grid,
+.mobile-ui .pagos-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .pagos-field input,
+.mobile-ui .pagos-field select,
+.mobile-ui .pagos-field textarea {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .pagos-btn {
+  min-height: 78px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+
+.mobile-ui .pagos-table {
+  min-width: 760px;
+}
+</style>

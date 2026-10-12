@@ -1,0 +1,161 @@
+<script>
+let cobroUltimoResultado = null;
+
+function cobroPreparar() {
+  coreCargarEmpresas(['cobroEmpresa'], true);
+  pagosMostrarUltimoCobro('cobroUltimoCobro', 'cobroEmpresa', 'cobroDesde');
+}
+
+function cobroCalcular() {
+  const datos = {
+    desde: coreGetValue('cobroDesde'),
+    hasta: coreGetValue('cobroHasta'),
+    empresa: coreGetValue('cobroEmpresa')
+  };
+
+  coreMensaje('mensajeCobro', 'Calculando pendiente...', 'info');
+
+  google.script.run
+    .withSuccessHandler(cobroPintarResultado)
+    .withFailureHandler(coreManejarError('mensajeCobro'))
+    .cobroCalcularImporte(datos);
+}
+
+function cobroPintarResultado(data) {
+  cobroUltimoResultado = data;
+
+  const box = document.getElementById('cobroResultado');
+  box.classList.remove('hidden');
+
+  const tabla = data.lineas && data.lineas.length
+    ? `
+      <div class="cobro-tabla-wrap">
+        <table class="cobro-tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Empresa</th>
+              <th>Petición</th>
+              <th>Horas</th>
+              <th>Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.lineas.map(function(r) {
+              return `
+                <tr>
+                  <td>${coreEscapeHtml(r.fecha)}</td>
+                  <td>${coreEscapeHtml(r.empresa)}</td>
+                  <td>${coreEscapeHtml(r.peticion)}</td>
+                  <td>${coreEscapeHtml(r.horasTexto || r.horas)}</td>
+                  <td>${coreEscapeHtml(r.importe)} ${coreEscapeHtml(data.moneda)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+    : '<div class="cobro-line">No hay registros pendientes de cobro en este rango.</div>';
+
+  const pagos = data.pagos && data.pagos.length
+    ? `
+      <div class="cobro-tabla-wrap">
+        <table class="cobro-tabla">
+          <thead>
+            <tr>
+              <th>Pago</th>
+              <th>Empresa</th>
+              <th>Periodo</th>
+              <th>Importe</th>
+              <th>Método</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.pagos.map(function(r) {
+              return `
+                <tr>
+                  <td>${coreEscapeHtml(r.fechaPago)}</td>
+                  <td>${coreEscapeHtml(r.empresa)}</td>
+                  <td>${coreEscapeHtml(r.periodoDesde)} - ${coreEscapeHtml(r.periodoHasta)}</td>
+                  <td>${coreEscapeHtml(r.importe)} ${coreEscapeHtml(data.moneda)}</td>
+                  <td>${coreEscapeHtml(r.metodo)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+    : '<div class="cobro-line">No hay pagos registrados para este periodo.</div>';
+
+  const puedeCobrarTodo = data.empresa && data.registros > 0 && data.total > 0;
+  const accionCobro = puedeCobrarTodo
+    ? `
+      <button class="cobro-btn cobro-btn-pay" onclick="cobroCobrarTodoPeriodo()">
+        Cobrar todo
+      </button>
+    `
+    : data.empresa
+      ? '<div class="cobro-pay-note">No hay registros pendientes que cobrar en este periodo.</div>'
+      : '<div class="cobro-pay-note">Selecciona una empresa concreta para usar Cobrar todo.</div>';
+
+  box.innerHTML = `
+    <div class="cobro-line">Pendiente de cobrar</div>
+    <div class="cobro-total">${coreEscapeHtml(data.total)} ${coreEscapeHtml(data.moneda)}</div>
+
+    <div class="cobro-summary">
+      <div>
+        <span>Ya pagado en este periodo</span>
+        <strong>${coreEscapeHtml(data.totalPagado)} ${coreEscapeHtml(data.moneda)}</strong>
+      </div>
+      <div>
+        <span>Pendiente actual</span>
+        <strong>${coreEscapeHtml(data.pendiente)} ${coreEscapeHtml(data.moneda)}</strong>
+      </div>
+    </div>
+
+    <div class="cobro-period-action">
+      ${accionCobro}
+    </div>
+
+    <div class="cobro-line">Horas pendientes: ${coreEscapeHtml(data.horas)}</div>
+    <div class="cobro-line">Registros pendientes incluidos: ${coreEscapeHtml(data.registros)}</div>
+    <div class="cobro-line">Empresa: ${coreEscapeHtml(data.empresa || 'Todas')}</div>
+    <div class="cobro-line">Desde: ${coreEscapeHtml(data.desde)}</div>
+    <div class="cobro-line">Hasta: ${coreEscapeHtml(data.hasta)}</div>
+
+    <h3 class="cobro-subtitle">Pendiente incluido en este cálculo</h3>
+    ${tabla}
+
+    <h3 class="cobro-subtitle">Pagos ya registrados</h3>
+    ${pagos}
+  `;
+
+  coreMensaje('mensajeCobro', 'Cálculo completado.', 'ok');
+}
+
+function cobroCobrarTodoPeriodo() {
+  if (!cobroUltimoResultado) {
+    coreMensaje('mensajeCobro', 'Primero calcula un periodo.', 'error');
+    return;
+  }
+
+  const datos = {
+    desde: cobroUltimoResultado.desde,
+    hasta: cobroUltimoResultado.hasta,
+    empresa: cobroUltimoResultado.empresa
+  };
+
+  coreMensaje('mensajeCobro', 'Marcando periodo como cobrado...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      coreMensaje('mensajeCobro', 'Cobrado todo el periodo: ' + data.id, 'ok');
+      cobroPintarResultado(data.resumen);
+      pagosMostrarUltimoCobro('cobroUltimoCobro', 'cobroEmpresa', 'cobroDesde');
+    })
+    .withFailureHandler(coreManejarError('mensajeCobro'))
+    .cobroCobrarTodoPeriodo(datos);
+}
+</script>

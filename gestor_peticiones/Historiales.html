@@ -1,0 +1,168 @@
+<section id="historial" class="view hidden">
+  <header class="view-head">
+    <h2>Historial</h2>
+    <p>Toca una petición para revisarla o editarla.</p>
+  </header>
+
+  <div id="historialChips" class="chips" role="group" aria-label="Filtrar por cobro">
+    <button type="button" class="chip" data-cobro="" onclick="historialFiltrarCobro('')">Todas</button>
+    <button type="button" class="chip" data-cobro="PENDIENTE" onclick="historialFiltrarCobro('PENDIENTE')">Pendientes</button>
+    <button type="button" class="chip" data-cobro="COBRADO" onclick="historialFiltrarCobro('COBRADO')">Cobradas</button>
+  </div>
+
+  <details class="filters">
+    <summary>Más filtros</summary>
+
+    <div class="filters-body">
+      <div class="grid grid-3">
+        <div class="field">
+          <label for="historialFiltroDesde">Desde</label>
+          <input id="historialFiltroDesde" type="date">
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroHasta">Hasta</label>
+          <input id="historialFiltroHasta" type="date">
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroEmpresa">Empresa</label>
+          <select id="historialFiltroEmpresa"></select>
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroPeticion">Petición</label>
+          <input id="historialFiltroPeticion" type="text">
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroId">ID</label>
+          <input id="historialFiltroId" type="text" placeholder="PET-...">
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroEstado">Estado</label>
+          <select id="historialFiltroEstado">
+            <option value="">Todos</option>
+            <option value="CERRADA">Cerrada</option>
+            <option value="NO_COBRAR">No cobrar</option>
+            <option value="EN_CURSO">En curso</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="historialFiltroEstadoCobro">Cobro</label>
+          <select id="historialFiltroEstadoCobro">
+            <option value="">Todos</option>
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="COBRADO">Cobrado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-primary" onclick="historialCargar()">Aplicar filtros</button>
+        <button type="button" class="btn btn-secondary" onclick="historialLimpiarFiltros()">Limpiar filtros</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="mensajeHistorialGeneral" class="message hidden"></div>
+
+  <div id="historialEditor" class="panel hidden">
+    <h3>Editar petición</h3>
+
+    <input id="editId" type="hidden">
+
+    <div class="grid">
+      <div class="field">
+        <label for="editEmpresa">Empresa</label>
+        <select id="editEmpresa"></select>
+      </div>
+
+      <div class="field">
+        <label for="editPeticion">Petición</label>
+        <input id="editPeticion" type="text">
+      </div>
+
+      <div class="field">
+        <label for="editInicio">Inicio</label>
+        <input id="editInicio" type="datetime-local">
+      </div>
+
+      <div class="field">
+        <label for="editFin">Fin</label>
+        <input id="editFin" type="datetime-local">
+      </div>
+
+      <div class="field">
+        <label for="editMinutos">Minutos reales</label>
+        <input id="editMinutos" type="number" readonly>
+      </div>
+
+      <div class="field">
+        <label for="editHoras">Horas facturadas</label>
+        <input id="editHoras" type="number" readonly>
+      </div>
+
+      <div class="field">
+        <label for="editTarifa">Tarifa hora</label>
+        <input id="editTarifa" type="number" step="0.01">
+      </div>
+
+      <div class="field">
+        <label for="editImporte">Importe</label>
+        <input id="editImporte" type="number" step="0.01">
+      </div>
+
+      <div class="field">
+        <label for="editEstado">Estado</label>
+        <select id="editEstado">
+          <option value="CERRADA">Cerrada</option>
+          <option value="EN_CURSO">En curso</option>
+          <option value="NO_COBRAR">No cobrar</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="editTipo">Tipo</label>
+        <select id="editTipo">
+          <option value="MANUAL">Manual</option>
+          <option value="AUTO">Cronómetro</option>
+          <option value="UNICO">Cobro único</option>
+        </select>
+      </div>
+
+      <div class="field field-full">
+        <label for="editObservaciones">Observaciones</label>
+        <textarea id="editObservaciones"></textarea>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn btn-primary" onclick="historialGuardarEdicion()">Guardar cambios</button>
+      <button type="button" class="btn btn-secondary" onclick="historialCerrarEditor()">Cancelar</button>
+      <button type="button" class="btn btn-danger" onclick="historialPrepararEliminar()">Eliminar</button>
+    </div>
+
+    <div id="mensajeHistorialEditor" class="message hidden"></div>
+  </div>
+
+  <div id="historialConfirmacionEliminar" class="dialog hidden">
+    <div class="dialog-box" role="dialog" aria-labelledby="historialEliminarTitulo">
+      <h3 id="historialEliminarTitulo">Eliminar petición</h3>
+
+      <p>La petición se marcará como eliminada y dejará de aparecer en el historial.</p>
+      <p>ID: <strong id="historialEliminarIdTexto"></strong></p>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" onclick="historialCancelarEliminar()">Cancelar</button>
+        <button type="button" class="btn btn-danger" onclick="historialConfirmarEliminar()">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="historialContenido">
+    <div class="empty">Cargando...</div>
+  </div>
+</section>

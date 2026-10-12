@@ -1,0 +1,69 @@
+<section id="documentos" class="view hidden">
+  <header class="view-head">
+    <h2>Cobros</h2>
+    <p>Crea una proforma con lo pendiente de un periodo y, cuando el cliente la confirme, conviértela en factura.</p>
+  </header>
+
+  <div class="seg" role="group" aria-label="Sección de cobros">
+    <button type="button" data-nav="cobro" onclick="coreMostrarVista('cobro')">Calcular</button>
+    <button type="button" data-nav="pagos" onclick="coreMostrarVista('pagos')">Cobrar</button>
+    <button type="button" data-nav="facturacion" onclick="coreMostrarVista('facturacion')">Resumen</button>
+    <button type="button" data-nav="documentos" onclick="coreMostrarVista('documentos')">Facturas</button>
+  </div>
+
+  <div class="panel">
+    <h3>Nueva proforma</h3>
+
+    <div class="grid grid-3">
+      <div class="field">
+        <label for="docEmpresa">Empresa</label>
+        <select id="docEmpresa" onchange="pagosMostrarUltimoCobro('docUltimoCobro', 'docEmpresa', 'docDesde')"></select>
+      </div>
+
+      <div class="field">
+        <label for="docDesde">Desde</label>
+        <input id="docDesde" type="date">
+      </div>
+
+      <div class="field">
+        <label for="docHasta">Hasta</label>
+        <input id="docHasta" type="date">
+      </div>
+    </div>
+
+    <div id="docUltimoCobro" class="last-pay hidden"></div>
+
+    <div class="actions">
+      <button type="button" id="docBtnProforma" class="btn btn-primary" onclick="documentosCrearProforma()">Crear proforma</button>
+    </div>
+
+    <div id="mensajeDocumentos" class="message hidden"></div>
+  </div>
+
+  <div class="section-head">
+    <h3>Proformas y facturas</h3>
+  </div>
+
+  <div id="documentosListado">
+    <div class="empty">Cargando...</div>
+  </div>
+
+  <div id="documentosDialogo" class="dialog hidden">
+    <div class="dialog-box" role="dialog" aria-labelledby="documentosDialogoTitulo">
+      <h3 id="documentosDialogoTitulo"></h3>
+      <p id="documentosDialogoTexto"></p>
+
+      <div id="documentosDialogoMotivo" class="field hidden" style="margin-top: 16px">
+        <label for="documentosMotivo">Motivo de la rectificación</label>
+        <textarea id="documentosMotivo"></textarea>
+      </div>
+
+      <div id="mensajeDocumentosDialogo" class="message hidden"></div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" onclick="documentosCerrarDialogo()">Cancelar</button>
+        <button type="button" id="documentosDialogoConfirmar" class="btn btn-primary" onclick="documentosConfirmarDialogo()">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</section>

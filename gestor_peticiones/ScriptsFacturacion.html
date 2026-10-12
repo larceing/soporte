@@ -1,0 +1,172 @@
+<script>
+let facturacionUltimoResumen = null;
+let facturacionUltimoPdfUrl = '';
+
+function facturacionPreparar() {
+  coreCargarEmpresas(['factEmpresa'], false);
+  pagosMostrarUltimoCobro('factUltimoCobro', 'factEmpresa', 'factDesde');
+}
+
+function facturacionLeerFiltros() {
+  const datos = {
+    desde: coreGetValue('factDesde'),
+    hasta: coreGetValue('factHasta'),
+    empresa: coreGetValue('factEmpresa'),
+    numero: coreGetValue('factNumero'),
+    detalle: document.getElementById('factDetalle').checked
+  };
+
+  if (!datos.empresa) {
+    throw new Error('Debes indicar una empresa para generar el resumen.');
+  }
+
+  return datos;
+}
+
+function facturacionVistaPrevia() {
+  let filtros;
+
+  try {
+    filtros = facturacionLeerFiltros();
+  } catch (error) {
+    coreMensaje('mensajeFacturacion', error.message, 'error');
+    return;
+  }
+
+  facturacionUltimoResumen = null;
+  facturacionUltimoPdfUrl = '';
+
+  coreMensaje('mensajeFacturacion', 'Generando vista previa...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      facturacionPintarPreview(data, '');
+      coreMensaje('mensajeFacturacion', 'Vista previa generada.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeFacturacion'))
+    .facturacionObtenerResumen(filtros);
+}
+
+function facturacionGenerarPdf() {
+  let filtros;
+
+  try {
+    filtros = facturacionLeerFiltros();
+  } catch (error) {
+    coreMensaje('mensajeFacturacion', error.message, 'error');
+    return;
+  }
+
+  facturacionUltimoResumen = null;
+  facturacionUltimoPdfUrl = '';
+
+  coreMensaje('mensajeFacturacion', 'Generando PDF...', 'info');
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      facturacionUltimoResumen = data.resumen;
+      facturacionUltimoPdfUrl = data.url || '';
+
+      facturacionPintarPreview(data.resumen, data.url);
+      coreMensaje('mensajeFacturacion', 'PDF generado correctamente.', 'ok');
+    })
+    .withFailureHandler(coreManejarError('mensajeFacturacion'))
+    .facturacionGenerarPdfDrive(filtros);
+}
+
+function facturacionPintarPreview(data, urlPdf) {
+  facturacionUltimoResumen = data;
+  facturacionUltimoPdfUrl = urlPdf || '';
+
+  const box = document.getElementById('factPreview');
+  box.classList.remove('hidden');
+
+  if (!data || !data.lineas || !data.lineas.length) {
+    box.innerHTML = '<p>No hay registros cerrados para ese rango.</p>';
+    return;
+  }
+
+  box.innerHTML = `
+    <h3>Resumen de servicios</h3>
+
+    <p>
+      <strong>Empresa:</strong> ${coreEscapeHtml(data.empresa || 'Todas')}<br>
+      <strong>Periodo:</strong> ${coreEscapeHtml(data.desde)} - ${coreEscapeHtml(data.hasta)}
+    </p>
+
+    <table class="fact-preview-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Servicio / petición</th>
+          <th>Horas</th>
+          <th>Importe</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.lineas.map(function(r) {
+          return `
+            <tr>
+              <td>${coreEscapeHtml(r.fecha)}</td>
+              <td>${coreEscapeHtml(r.servicio)}</td>
+              <td>${coreEscapeHtml(r.horasTexto || r.horas)}</td>
+              <td>${coreEscapeHtml(r.importe)} ${coreEscapeHtml(data.moneda)}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+
+    <div class="fact-total-box">
+      <div>Subtotal: ${coreEscapeHtml(data.subtotal)} ${coreEscapeHtml(data.moneda)}</div>
+      <div>IVA ${coreEscapeHtml(data.ivaPorcentaje)}%: ${coreEscapeHtml(data.ivaImporte)} ${coreEscapeHtml(data.moneda)}</div>
+      ${
+        Number(data.irpfPorcentaje || 0) > 0
+          ? `<div>Retención IRPF ${coreEscapeHtml(data.irpfPorcentaje)}%: −${coreEscapeHtml(data.irpfImporte)} ${coreEscapeHtml(data.moneda)}</div>`
+          : ''
+      }
+      <div>Total: ${coreEscapeHtml(data.total)} ${coreEscapeHtml(data.moneda)}</div>
+    </div>
+
+    ${
+      facturacionUltimoPdfUrl
+        ? `<a class="fact-link" href="${coreEscapeHtml(facturacionUltimoPdfUrl)}" target="_blank">Abrir PDF generado</a>`
+        : ''
+    }
+  `;
+}
+
+function facturacionWhatsapp() {
+  if (!facturacionUltimoPdfUrl) {
+    coreMensaje('mensajeFacturacion', 'Primero genera el PDF.', 'error');
+    return;
+  }
+
+  const data = facturacionUltimoResumen || {};
+  const cliente = data.cliente || {};
+  const telefono = String(cliente.telefonoWhatsapp || '').replace(/\D/g, '');
+
+  const texto =
+`Hola.
+
+Te paso el resumen de servicios en PDF:
+
+${facturacionUltimoPdfUrl}
+
+Muchas gracias.`;
+
+  navigator.clipboard.writeText(texto).catch(function() {});
+
+  const url = telefono
+    ? 'https://wa.me/' + telefono + '?text=' + encodeURIComponent(texto)
+    : 'https://wa.me/?text=' + encodeURIComponent(texto);
+
+  window.open(url, '_blank');
+
+  coreMensaje(
+    'mensajeFacturacion',
+    'Mensaje copiado y preparado para WhatsApp.',
+    'ok'
+  );
+}
+</script>

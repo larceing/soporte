@@ -1,0 +1,116 @@
+/* Imagen propia Henry Arce: azul marino #0E1B33, turquesa #35D6C0.
+   Se carga después de las hojas de MantisBT y solo sobrescribe colores. */
+
+/* --- Barra superior ----------------------------------------------------- */
+.skin-3 .navbar,
+.skin-3 .navbar.navbar-collapse {
+	background: #0E1B33;
+}
+.navbar .navbar-brand {
+	color: #FFF;
+	padding-left: 44px;
+	background: url('plugin_file.php?file=HenryArce/monograma.svg') no-repeat 8px center;
+	background-size: 28px 28px;
+}
+
+.ace-nav > li.grey > a {
+	background-color: #1B2C4F;
+}
+.ace-nav > li.grey > a:hover,
+.ace-nav > li.grey > a:focus,
+.ace-nav > li.open.grey > a {
+	background-color: #26396A !important;
+}
+.navbar .btn-primary,
+.navbar .btn-primary:hover,
+.navbar .btn-primary:focus {
+	background-color: #35D6C0 !important;
+	border-color: #35D6C0 !important;
+	color: #0E1B33 !important;
+	text-shadow: none;
+}
+.navbar .btn-primary:hover,
+.navbar .btn-primary:focus {
+	background-color: #1FB8A3 !important;
+	border-color: #1FB8A3 !important;
+}
+
+/* --- Menú lateral ------------------------------------------------------- */
+.skin-3 .sidebar {
+	background-color: #0E1B33;
+	border-color: #0E1B33;
+}
+.skin-3 .nav-list > li,
+.skin-3 .nav-list > li.active,
+.skin-3 .nav-list > li.active + li,
+.skin-3 .nav-list > li:hover,
+.skin-3 .nav-list > li:hover + li {
+	border-color: #1B2C4F !important;
+}
+.skin-3 .nav-list > li > a,
+.skin-3 .nav-list > li > a:focus {
+	background-color: #0E1B33;
+	color: #C9D3E6;
+}
+.skin-3 .nav-list > li:hover > a {
+	background-color: #1B2C4F;
+	color: #FFF;
+}
+.skin-3 .nav-list > li.active > a,
+.skin-3 .nav-list > li.active.highlight > a {
+	background-color: #1B2C4F !important;
+	color: #35D6C0 !important;
+}
+.skin-3 .nav-list > li:hover:before,
+.skin-3 .nav-list > li.active:before {
+	background-color: #35D6C0 !important;
+}
+.sidebar .sidebar-toggle {
+	background-color: #0E1B33;
+	border-color: #1B2C4F;
+}
+.sidebar .sidebar-toggle > .ace-icon {
+	background-color: #0E1B33;
+	border-color: #C9D3E6;
+	color: #C9D3E6;
+}
+
+/* --- Contenido ---------------------------------------------------------- */
+a {
+	color: #0E7C6F;
+}
+a:hover,
+a:focus {
+	color: #0A5B52;
+}
+.widget-color-blue2 {
+	border-color: #C5CBD6;
+}
+.widget-color-blue2 > .widget-header {
+	background: #0E1B33;
+	border-color: #0E1B33;
+}
+.btn-primary.btn-white {
+	border-color: #35D6C0;
+	color: #0E1B33 !important;
+}
+.btn-primary.btn-white:hover,
+.btn-primary.btn-white:focus {
+	background-color: #E6FAF7 !important;
+	border-color: #1FB8A3;
+}
+
+/* --- Inicio de sesión --------------------------------------------------- */
+.login-layout.light-login {
+	background: #0E1B33 !important;
+}
+.login-layout .login-logo img {
+	max-width: 320px;
+}
+.login-layout .btn-inverse,
+.login-layout .btn-success {
+	background-color: #35D6C0 !important;
+	border-color: #35D6C0 !important;
+	color: #0E1B33 !important;
+	text-shadow: none;
+}

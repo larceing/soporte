@@ -1,0 +1,158 @@
+<style>
+.manual-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.manual-title {
+  margin-bottom: 20px;
+}
+
+.manual-title h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 26px;
+}
+
+.manual-title p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.manual-grid,
+.manual-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.manual-field label {
+  display: block;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.manual-field input,
+.manual-field select,
+.manual-field textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px;
+  font-size: 16px;
+}
+
+.manual-field textarea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.manual-full {
+  grid-column: 1 / -1;
+}
+
+.manual-actions {
+  margin-top: 20px;
+  gap: 14px;
+}
+
+.manual-btn {
+  min-height: 58px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.manual-btn-save {
+  background: var(--primary);
+}
+
+.manual-btn-back {
+  background: var(--secondary);
+}
+
+@media (min-width: 800px) {
+  .manual-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .manual-actions {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .manual-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100vh - 20px);
+    padding: 16px !important;
+    border-radius: 18px;
+  }
+
+  .manual-title h2 {
+    font-size: 26px;
+  }
+
+  .manual-grid,
+  .manual-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .manual-field input,
+  .manual-field select,
+  .manual-field textarea {
+    min-height: 60px;
+    font-size: 18px;
+    border-radius: 14px;
+  }
+
+  .manual-field textarea {
+    min-height: 150px;
+  }
+
+  .manual-btn {
+    min-height: 78px;
+    font-size: 18px;
+    border-radius: 16px;
+  }
+}
+
+.mobile-ui .manual-card {
+  width: 100%;
+  max-width: none;
+  min-height: calc(100dvh - 20px);
+  padding: 16px !important;
+  border-radius: 18px;
+}
+
+.mobile-ui .manual-grid,
+.mobile-ui .manual-actions {
+  grid-template-columns: 1fr !important;
+}
+
+.mobile-ui .manual-field input,
+.mobile-ui .manual-field select,
+.mobile-ui .manual-field textarea {
+  min-height: 60px;
+  font-size: 18px;
+  border-radius: 14px;
+}
+
+.mobile-ui .manual-btn {
+  min-height: 78px;
+  font-size: 18px;
+  border-radius: 16px;
+}
+</style>

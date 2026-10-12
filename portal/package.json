@@ -1,0 +1,18 @@
+{
+  "name": "portal-incidencias",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portal propio de incidencias, documentación y horas. Usa MantisBT como motor por su API REST.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5"
+  }
+}

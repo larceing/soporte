@@ -1,0 +1,74 @@
+<style>
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 32, 51, 0.46);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.modal-box {
+  width: 460px;
+  max-width: 92%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 26px;
+  box-shadow: 0 22px 60px rgba(22, 42, 74, 0.22);
+}
+
+.modal-box h3 {
+  margin: 0;
+  color: var(--heading);
+  font-size: 24px;
+}
+
+.modal-box p {
+  margin: 14px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .modal {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .modal-box {
+    width: 100%;
+    max-width: none;
+    border-radius: 20px;
+    padding: 22px;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mobile-ui .modal {
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.mobile-ui .modal-box {
+  width: 100%;
+  max-width: none;
+  border-radius: 20px;
+  padding: 22px;
+}
+
+.mobile-ui .modal-actions {
+  grid-template-columns: 1fr;
+}
+</style>

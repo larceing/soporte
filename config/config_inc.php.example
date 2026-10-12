@@ -1,0 +1,21 @@
+<?php
+# Plantilla de config_inc.php. El instalador genera la primera parte;
+# lo que hay que añadir a mano es el correo y el require final.
+$g_hostname               = 'db';
+$g_db_type                = 'mysqli';
+$g_database_name          = 'mantisbt';
+$g_db_username            = 'mantisbt';
+$g_db_password            = '';
+
+$g_default_timezone       = 'Europe/Madrid';
+
+$g_crypto_master_salt     = '';
+
+$g_path                   = 'http://localhost:8080/';
+
+# Correo de desarrollo: todo se entrega a Mailpit (http://localhost:8025)
+$g_phpMailer_method       = PHPMAILER_METHOD_SMTP;
+$g_smtp_host              = 'mail';
+$g_smtp_port              = 1025;
+
+require_once( __DIR__ . '/ha_config_inc.php' );
