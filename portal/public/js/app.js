@@ -80,6 +80,7 @@ function coreMostrarVista(vista) {
     sesiones: sesionesCargar,
     pagos: pagosCargar,
     documentos: documentosCargar,
+    correo: correoCargar,
     ajustes: ajustesCargar
   }[vista];
 
@@ -472,7 +473,9 @@ function detallePintar(inc) {
         ' · Tiempo registrado: ' + fmtDuracion(inc.minutos) + '</p>' +
     '</header>' +
 
-    '<div class="det-actions">' + accion + '</div>' +
+    '<div class="det-actions">' + accion +
+      '<button type="button" class="btn btn-secondary" onclick="correoAbrir(detalleActual)">Enviar correo</button>' +
+    '</div>' +
 
     '<div class="seg seg-wide" role="tablist">' + pestanas.map(function(p) {
       return '<button type="button" role="tab" class="' + (detalleTab === p[0] ? 'is-active' : '') +

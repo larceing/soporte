@@ -126,6 +126,17 @@ const TABLAS = [
      usuario_id INT UNSIGNED NOT NULL,
      caduca_en DATETIME NOT NULL
    )`,
+  // Correos escritos a mano desde el portal, para saber qué se envió y a quién.
+  `CREATE TABLE IF NOT EXISTS ha_correo (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     usuario_id INT UNSIGNED NOT NULL,
+     incidencia_id INT UNSIGNED NULL,
+     para VARCHAR(1000) NOT NULL,
+     asunto VARCHAR(255) NOT NULL,
+     mensaje MEDIUMTEXT NOT NULL,
+     enviado_en DATETIME NOT NULL,
+     INDEX idx_ha_correo_incidencia (incidencia_id)
+   )`,
   // PDF originales de documentos emitidos antes de existir el portal.
   `CREATE TABLE IF NOT EXISTS ha_documento_pdf (
      documento_id INT UNSIGNED PRIMARY KEY,

@@ -5,6 +5,7 @@ const fact = require('./facturacion');
 const auth = require('./auth');
 const { documentoHtml } = require('./documento-html');
 const resumen = require('./resumen');
+const correo = require('./correo');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
 const router = express.Router();
@@ -247,6 +248,74 @@ router.post('/cronometro/parar', ruta(async (req, res) => {
 router.post('/cronometro/descartar', ruta(async (req, res) => {
   await consulta('DELETE FROM ha_cronometro WHERE usuario_id = ?', [req.usuario.id]);
   res.json({ ok: true });
+}));
+
+/* Correo escrito a mano */
+
+// Valida lo que llega de la pantalla de redacción y lo deja listo para enviar.
+function correoDe(cuerpo, exigirDestino) {
+  const para = String(cuerpo.para || '').split(/[,;\s]+/).map(p => p.trim()).filter(p => p);
+  const asunto = texto(cuerpo.asunto, 200);
+  const mensaje = texto(cuerpo.mensaje, 20000);
+  const botonUrl = texto(cuerpo.botonUrl, 500);
+
+  if (exigirDestino) {
+    if (!para.length) throw new ErrorUsuario('Indica al menos un destinatario.');
+    if (para.length > 10) throw new ErrorUsuario('Como máximo 10 destinatarios por correo.');
+    const malo = para.find(p => !correo.emailValido(p));
+    if (malo) throw new ErrorUsuario('Esta dirección no es válida: ' + malo);
+    if (!asunto) throw new ErrorUsuario('Escribe el asunto.');
+    if (!mensaje) throw new ErrorUsuario('Escribe el mensaje.');
+  }
+  if (botonUrl && !/^https?:\/\//i.test(botonUrl)) throw new ErrorUsuario('El enlace del botón debe empezar por http:// o https://');
+
+  return {
+    para: para,
+    asunto: asunto,
+    mensaje: mensaje,
+    boton: botonUrl ? { url: botonUrl, texto: texto(cuerpo.botonTexto, 60) || 'Abrir' } : null
+  };
+}
+
+router.post('/correo/vista', ruta(async (req, res) => {
+  const c = correoDe(req.body || {}, false);
+  res.json({ html: correo.htmlPersonal({ asunto: c.asunto || 'Asunto', mensaje: c.mensaje || 'Escribe aquí tu mensaje.', boton: c.boton }) });
+}));
+
+router.post('/correo/enviar', ruta(async (req, res) => {
+  const c = correoDe(req.body || {}, true);
+
+  // Si va ligado a una incidencia, tiene que existir antes de enviar nada.
+  const incidenciaId = req.body.incidenciaId ? (await mantis.obtener(req.body.incidenciaId)).id : null;
+
+  const resultado = await correo.personal(c);
+  if (!resultado.enviado) throw new ErrorUsuario(resultado.motivo, 502);
+
+  await consulta(
+    'INSERT INTO ha_correo (usuario_id, incidencia_id, para, asunto, mensaje, enviado_en) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())',
+    [req.usuario.id, incidenciaId, c.para.join(', '), c.asunto, c.mensaje]
+  );
+
+  // El correo queda anotado en la incidencia como parte de su documentación.
+  let anotado = true;
+  if (incidenciaId) {
+    try {
+      await mantis.anadirNota(incidenciaId, {
+        texto: 'Correo enviado a ' + c.para.join(', ') + '\nAsunto: ' + c.asunto + '\n\n' + c.mensaje,
+        minutos: 0
+      });
+    } catch (e) {
+      anotado = false;
+    }
+  }
+
+  res.status(201).json({ ok: true, para: c.para, anotado: anotado });
+}));
+
+router.get('/correo/enviados', ruta(async (req, res) => {
+  res.json(await consulta(
+    'SELECT id, incidencia_id AS incidenciaId, para, asunto, mensaje, enviado_en AS enviadoEn FROM ha_correo ORDER BY id DESC LIMIT 100'
+  ));
 }));
 
 /* Ajustes */

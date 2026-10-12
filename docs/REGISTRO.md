@@ -98,6 +98,12 @@ y abrir http://localhost:8081.
 - Correo por Resend: recuperación de contraseña, aviso de inicio de sesión, aviso de contraseña
   cambiada y resumen mensual el día 1.
 - Batería de pruebas de casuística: 181 comprobaciones.
+- Pantalla **Correo**: escribir desde `soporte@` con la plantilla de la marca, vista previa, botón
+  opcional y lista de enviados (tabla `ha_correo`). Desde la ficha de una incidencia, el correo
+  queda anotado en su documentación.
+- Logotipo en la cabecera de todos los correos: `portal/public/img/monograma.png`, generado desde
+  `monograma.svg` (los programas de correo no admiten SVG). Se sirve desde producción, así que
+  debe existir allí para que se vea. Otra imagen: variable `CORREO_LOGO_URL`.
 
 **Dominio y correo**
 
@@ -105,6 +111,10 @@ y abrir http://localhost:8081.
 - Dominio verificado en Resend (registros `resend._domainkey`, `send` y `rsend`).
 - Activado Cloudflare Email Routing: `soporte@` → Gmail. Añadidos tres MX y la firma DKIM.
 - SPF combinado para no perder el de WordPress (antes solo `include:_spf.wpcloud.com`).
+- Comprobado de extremo a extremo: un correo enviado a `soporte@` llegó al Gmail.
+- La foto redonda del remitente en Gmail no se puede poner desde la aplicación: Gmail solo la
+  muestra con BIMI (exige DMARC estricto y un certificado de marca de pago) o si la dirección es
+  una cuenta de Google con foto.
 
 ## Pendiente
 
