@@ -15,6 +15,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
 | Envío de correo | Resend, región Irlanda | Remitente `soporte@luiscontacto03.com` |
 | Recepción de correo | Cloudflare Email Routing | `soporte@luiscontacto03.com` → Gmail personal |
+| Web portafolio | Contenedor `portafolio-web` (nginx), carpeta `/opt/apps/portafolio` | Código en `DESARROLLO\web-portafolio`, repositorio aparte. Pendiente de apuntarle la raíz del dominio |
 | Entorno local | http://localhost:8090 (portal), :8080 (MantisBT), :8025 (correo de pruebas) | `docker compose up -d` en esta carpeta |
 
 ## Dónde está cada credencial
@@ -115,6 +116,15 @@ y abrir http://localhost:8081.
 - La foto redonda del remitente en Gmail no se puede poner desde la aplicación: Gmail solo la
   muestra con BIMI (exige DMARC estricto y un certificado de marca de pago) o si la dirección es
   una cuenta de Google con foto.
+
+**Web portafolio**
+
+- Creada en `DESARROLLO\web-portafolio` y desplegada en el servidor como contenedor
+  `portafolio-web`, todavía sin dominio. La raíz `luiscontacto03.com` sigue sirviendo el sitio de
+  WordPress.com "Panel de Trabajos" (registro A con proxy de Cloudflare).
+- Para publicarla en la raíz: en Cloudflare, registro A `@` → `178.104.121.47` en solo DNS, y `www`
+  igual; en Nginx Proxy Manager, host `luiscontacto03.com` + `www.luiscontacto03.com` →
+  `portafolio-web:80` con certificado. El sitio de WordPress deja de verse en el dominio.
 
 ## Pendiente
 
