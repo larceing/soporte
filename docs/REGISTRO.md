@@ -127,6 +127,9 @@ y abrir http://localhost:8081.
   cuenta de WordPress. Para volver atrás basta con recrear sus dos registros A.
 - Actualizar: subir la carpeta con `tar` por `ssh` a `/opt/apps/portafolio` y ejecutar allí
   `docker compose -f docker-compose.server.yml up -d --build`.
+- 2026-10-13: versión en inglés en https://luiscontacto03.com/en/, con enlace de idioma en el
+  menú de las dos páginas. `construir.js` genera ambas; los textos en inglés están en
+  `contenido.en.js` (al añadir un proyecto hay que traducirlo allí).
 
 ## Pendiente
 
