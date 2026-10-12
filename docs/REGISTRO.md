@@ -15,7 +15,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
 | Envío de correo | Resend, región Irlanda | Remitente `soporte@luiscontacto03.com` |
 | Recepción de correo | Cloudflare Email Routing | `soporte@luiscontacto03.com` → Gmail personal |
-| Web portafolio | Contenedor `portafolio-web` (nginx), carpeta `/opt/apps/portafolio` | Código en `DESARROLLO\web-portafolio`, repositorio aparte. Pendiente de apuntarle la raíz del dominio |
+| Web portafolio | https://luiscontacto03.com | Contenedor `portafolio-web` (nginx), carpeta `/opt/apps/portafolio`. Código en `DESARROLLO\web-portafolio`, repositorio aparte |
 | Entorno local | http://localhost:8090 (portal), :8080 (MantisBT), :8025 (correo de pruebas) | `docker compose up -d` en esta carpeta |
 
 ## Dónde está cada credencial
@@ -36,6 +36,8 @@ van entre comillas dobles.
 
 | Tipo | Nombre | Valor | Para qué |
 |---|---|---|---|
+| A | `@` (raíz) | `178.104.121.47` (solo DNS) | El portafolio. Antes eran dos registros de WordPress.com: `192.0.78.207` y `192.0.78.176`, con proxy |
+| CNAME | `www` | `luiscontacto03.com` (solo DNS) | Redirige a la raíz |
 | A | `soporte` | `178.104.121.47` (solo DNS, nube gris) | El portal |
 | A | `citas`, `krearte`, `stock` | `178.104.121.47` | Otras aplicaciones |
 | MX | `@` | `route1`, `route2`, `route3.mx.cloudflare.net` | Recibir correo (Cloudflare Email Routing) |
@@ -119,12 +121,12 @@ y abrir http://localhost:8081.
 
 **Web portafolio**
 
-- Creada en `DESARROLLO\web-portafolio` y desplegada en el servidor como contenedor
-  `portafolio-web`, todavía sin dominio. La raíz `luiscontacto03.com` sigue sirviendo el sitio de
-  WordPress.com "Panel de Trabajos" (registro A con proxy de Cloudflare).
-- Para publicarla en la raíz: en Cloudflare, registro A `@` → `178.104.121.47` en solo DNS, y `www`
-  igual; en Nginx Proxy Manager, host `luiscontacto03.com` + `www.luiscontacto03.com` →
-  `portafolio-web:80` con certificado. El sitio de WordPress deja de verse en el dominio.
+- Creada en `DESARROLLO\web-portafolio` y publicada en la raíz del dominio con certificado. En
+  Nginx Proxy Manager: host `luiscontacto03.com` + `www.luiscontacto03.com` → `portafolio-web:80`.
+- El sitio de WordPress.com "Panel de Trabajos" ya no se ve en el dominio; sigue existiendo en la
+  cuenta de WordPress. Para volver atrás basta con recrear sus dos registros A.
+- Actualizar: subir la carpeta con `tar` por `ssh` a `/opt/apps/portafolio` y ejecutar allí
+  `docker compose -f docker-compose.server.yml up -d --build`.
 
 ## Pendiente
 
@@ -135,5 +137,7 @@ y abrir http://localhost:8081.
 - Cerrar al exterior el puerto 81 del panel del proxy (Docker se salta el cortafuegos).
 - Copias de seguridad automáticas de la base de datos del servidor.
 - Quitar el acceso público a la hoja de Google y a la carpeta de PDF de Drive.
+- Portafolio: crear `hola@luiscontacto03.com` en Cloudflare Email Routing (es el correo de contacto
+  publicado) y añadir una foto propia.
 - Veri\*Factu: confirmar requisitos con el gestor antes de emitir facturas reales desde el portal.
 - El correo de avisos de MantisBT está desactivado en producción (el portal envía los suyos).
