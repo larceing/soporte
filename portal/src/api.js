@@ -279,7 +279,7 @@ function correoDe(cuerpo, exigirDestino) {
 
 router.post('/correo/vista', ruta(async (req, res) => {
   const c = correoDe(req.body || {}, false);
-  res.json({ html: correo.htmlPersonal({ asunto: c.asunto || 'Asunto', mensaje: c.mensaje || 'Escribe aquí tu mensaje.', boton: c.boton }) });
+  res.json({ html: await correo.htmlPersonal({ asunto: c.asunto || 'Asunto', mensaje: c.mensaje || 'Escribe aquí tu mensaje.', boton: c.boton }) });
 }));
 
 router.post('/correo/enviar', ruta(async (req, res) => {

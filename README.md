@@ -127,6 +127,18 @@ El portal de antes (`incidencias-web`) ya no está en el compose: `soporte.luisc
 portal nuevo desde **Poner en su dominio**, y `instalar-servidor.sh` quita el contenedor viejo
 (`--remove-orphans`).
 
+### Correo
+
+El portal no envía correo por su cuenta: se lo pide a **Mail** (`larceing/mail`), la app de correo
+del servidor, que le pone la marca, lo envía por Resend y lo anota. En el `app.env` de cada entorno:
+
+```
+MAIL_URL=http://mail-<entorno>:3000
+MAIL_LLAVE=ml_…        # en Mail → Llaves, app «soporte»
+```
+
+Sin esas dos el portal funciona igual pero no envía nada (ni la vista previa de Correo).
+
 ### Entrada con Keycloak
 
 En el servidor DEV/PRO el portal entra con Keycloak (realm `general`), como las demás apps:
