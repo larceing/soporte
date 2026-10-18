@@ -35,8 +35,8 @@ services:
       PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD}
       PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:-}
       PORTAL_URL: ${PORTAL_URL:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      CORREO_REMITENTE: ${CORREO_REMITENTE:-}
+      MAIL_URL: ${MAIL_URL:-}
+      MAIL_LLAVE: ${MAIL_LLAVE:-}
     volumes:
       - ./portal/server.js:/app/server.js:ro
       - ./portal/src:/app/src:ro

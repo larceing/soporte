@@ -11,3 +11,5 @@ EXAMPLE_*.TXT
 app.env.portal
 credenciales-iniciales.txt
 instalacion.log
+
+node_modules/

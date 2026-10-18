@@ -56,8 +56,8 @@ PORTAL_ADMIN_PASSWORD=$PORTAL_ADMIN_PASSWORD
 PORTAL_ADMIN_EMAIL=${PORTAL_ADMIN_EMAIL:-}
 PORTAL_COOKIE_SECURE=1
 PORTAL_PROXIES=2
-RESEND_API_KEY=${RESEND_API_KEY:-}
-CORREO_REMITENTE=${CORREO_REMITENTE:-}
+# Correo: lo envía la app Mail. MAIL_URL=http://mail-<entorno>:3000 y
+# MAIL_LLAVE (la llave de Soporte, creada en Mail → Llaves).
 EOF
 	)
 	echo "Variables para el portal del servidor DEV/PRO en $(pwd)/app.env.portal"

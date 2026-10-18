@@ -74,65 +74,48 @@ async function datos() {
   };
 }
 
-function html(d) {
-  const e = correo.esc;
-  const eur = v => e(dinero(v, d.moneda));
-  const fila = (nombre, valor) => '<tr><td style="padding:7px 0;color:#5B6877;">' + nombre + '</td>' +
-    '<td style="padding:7px 0;text-align:right;font-weight:bold;white-space:nowrap;">' + valor + '</td></tr>';
-  const tabla = filas => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;border-top:1px solid #DDE3EA;">' + filas.join('') + '</table>';
-  const titulo = t => '<strong style="font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#1D4F7A;">' + t + '</strong>';
-  const lista = (items, texto) => items.slice(0, 8).map(texto).join('<br>') + (items.length > 8 ? '<br>… y ' + (items.length - 8) + ' más' : '');
+// El resumen en bloques de Mail: tablas de cifras y listas.
+function bloques(d) {
+  const eur = v => dinero(v, d.moneda);
+  const lista = (items, texto) => items.slice(0, 8).map(i => '- ' + texto(i)).join('\n') +
+    (items.length > 8 ? '\n- … y ' + (items.length - 8) + ' más' : '');
 
-  const bloques = [
-    titulo('Pendiente de cobro') + tabla([
-      fila('Importe pendiente', eur(d.pendiente.importe)),
-      fila('Registros', d.pendiente.registros + (d.pendiente.desde ? ' (desde el ' + e(diaCorto(d.pendiente.desde)) + ')' : '')),
-      fila('Horas facturables', d.pendiente.horas + ' h'),
-      fila('Proformas sin confirmar', d.proformasPendientes.length),
-      fila('Facturas emitidas sin cobrar', d.facturasSinCobrar.length +
-        (d.facturasSinCobrar.length ? ' · ' + eur(d.facturasSinCobrar.reduce((s, f) => s + f.total, 0)) : ''))
-    ]),
-
-    titulo('Trabajo de ' + e(d.mes.nombre)) + tabla([
-      fila('Sesiones y gastos', d.trabajado.registros),
-      fila('Tiempo real', Math.round(d.trabajado.minutos / 6) / 10 + ' h'),
-      fila('Horas facturables', d.trabajado.horas + ' h'),
-      fila('Importe', eur(d.trabajado.importe))
-    ])
+  const b = [
+    { tipo: 'titulo', texto: 'Resumen del ' + diaCorto(d.hoy) },
+    { tipo: 'tabla', titulo: 'Pendiente de cobro', filas: [
+      ['Importe pendiente', eur(d.pendiente.importe)],
+      ['Registros', d.pendiente.registros + (d.pendiente.desde ? ' (desde el ' + diaCorto(d.pendiente.desde) + ')' : '')],
+      ['Horas facturables', d.pendiente.horas + ' h'],
+      ['Proformas sin confirmar', String(d.proformasPendientes.length)],
+      ['Facturas emitidas sin cobrar', d.facturasSinCobrar.length +
+        (d.facturasSinCobrar.length ? ' · ' + eur(d.facturasSinCobrar.reduce((s, f) => s + f.total, 0)) : '')]
+    ] },
+    { tipo: 'tabla', titulo: 'Trabajo de ' + d.mes.nombre, filas: [
+      ['Sesiones y gastos', String(d.trabajado.registros)],
+      ['Tiempo real', Math.round(d.trabajado.minutos / 6) / 10 + ' h'],
+      ['Horas facturables', d.trabajado.horas + ' h'],
+      ['Importe', eur(d.trabajado.importe)]
+    ] }
   ];
 
   if (d.incidenciasDisponibles) {
-    bloques.push(titulo('Incidencias') + tabla([
-      fila('Abiertas', d.abiertas),
-      fila('Esperando al cliente', d.esperando),
-      fila('Vencidas', d.vencidas.length),
-      fila('Prioridad alta o urgente', d.urgentes.length)
-    ]));
-
+    b.push({ tipo: 'tabla', titulo: 'Incidencias', filas: [
+      ['Abiertas', String(d.abiertas)],
+      ['Esperando al cliente', String(d.esperando)],
+      ['Vencidas', String(d.vencidas.length)],
+      ['Prioridad alta o urgente', String(d.urgentes.length)]
+    ] });
     if (d.vencidas.length) {
-      bloques.push(titulo('Vencidas') + '<br>' + lista(d.vencidas, i => e('#' + i.id + ' ' + i.titulo) + ' <span style="color:#9C2B24;">(límite ' + e(diaCorto(i.limite)) + ')</span>'));
+      b.push({ tipo: 'texto', texto: '**Vencidas**\n\n' + lista(d.vencidas, i => '#' + i.id + ' ' + i.titulo + ' (límite ' + diaCorto(i.limite) + ')') });
     }
     if (d.urgentes.length) {
-      bloques.push(titulo('Con prioridad alta') + '<br>' + lista(d.urgentes, i => e('#' + i.id + ' ' + i.titulo) + ' · ' + e(i.estadoTexto)));
+      b.push({ tipo: 'texto', texto: '**Con prioridad alta**\n\n' + lista(d.urgentes, i => '#' + i.id + ' ' + i.titulo + ' · ' + i.estadoTexto) });
     }
   } else {
-    bloques.push('No se han podido consultar las incidencias en este momento; los datos de cobro sí son correctos.');
+    b.push({ tipo: 'texto', texto: 'No se han podido consultar las incidencias en este momento; los datos de cobro sí son correctos.' });
   }
 
-  return correo.plantilla('Resumen del ' + diaCorto(d.hoy), bloques,
-    correo.URL_PORTAL ? { url: correo.URL_PORTAL, texto: 'Abrir el gestor' } : null);
-}
-
-function texto(d) {
-  return [
-    'Resumen del ' + diaCorto(d.hoy),
-    'Pendiente de cobro: ' + dinero(d.pendiente.importe, d.moneda) + ' en ' + d.pendiente.registros + ' registros (' + d.pendiente.horas + ' h).',
-    'Proformas sin confirmar: ' + d.proformasPendientes.length + '. Facturas sin cobrar: ' + d.facturasSinCobrar.length + '.',
-    'Trabajo de ' + d.mes.nombre + ': ' + d.trabajado.horas + ' h facturables, ' + dinero(d.trabajado.importe, d.moneda) + '.',
-    d.incidenciasDisponibles
-      ? 'Incidencias abiertas: ' + d.abiertas + ' (esperando al cliente ' + d.esperando + ', vencidas ' + d.vencidas.length + ').'
-      : 'No se han podido consultar las incidencias.'
-  ].join('\n');
+  return b.concat(correo.abrirGestor('', 'Abrir el gestor'));
 }
 
 async function enviar(para) {
@@ -140,8 +123,7 @@ async function enviar(para) {
   return correo.enviar({
     para: para,
     asunto: 'Resumen mensual · ' + dinero(d.pendiente.importe, d.moneda) + ' pendientes de cobro',
-    html: html(d),
-    texto: texto(d)
+    bloques: bloques(d)
   });
 }
 
@@ -176,4 +158,4 @@ function programar() {
   setInterval(revisar, 15 * 60 * 1000);
 }
 
-module.exports = { datos, enviar, programar };
+module.exports = { datos, enviar, programar, bloques };

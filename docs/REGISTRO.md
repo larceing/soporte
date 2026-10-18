@@ -121,6 +121,13 @@ dominio; parar `incidencias-web`; conectar Keycloak.
 **Pendiente**: las notas en MantisBT siguen firmadas por
 `administrator` (el usuario con el que el portal habla con MantisBT).
 
+### 2026-10-18 (mediodía)
+
+- Nueva app **Mail** (`larceing/mail`): el correo de todas las apps con la marca, por bloques,
+  con registro y llaves por app. En DEV con la clave de Resend de PRO (la de DEV estaba vacía).
+- El portal envía todo su correo a través de Mail (`MAIL_URL`, `MAIL_LLAVE` en su `app.env`)
+  y deja de llamar a Resend. El resumen mensual usa el bloque `tabla`.
+
 ### 2026-10-12
 
 **Decisiones**
