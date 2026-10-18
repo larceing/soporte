@@ -88,22 +88,43 @@ Cambiar `MANTIS_VERSION` y `MANTIS_SHA256` en `docker/web/Dockerfile` (la suma e
 fichero `.tar.gz.digests` de la versión en SourceForge), reconstruir con
 `docker compose up -d --build` y abrir `/admin/install.php` para aplicar los cambios de esquema.
 
-## Producción
+## Servidor DEV/PRO
 
-En el servidor vive en `/opt/apps/incidencias` y se publica en https://soporte.luiscontacto03.com
-a través de Nginx Proxy Manager, que apunta al contenedor `incidencias-web` (el portal). MantisBT
-(`incidencias-mantis`) y la base de datos quedan en la red interna, sin acceso desde fuera.
+El portal es una app del servidor común ([larceing/servidor](https://github.com/larceing/servidor)).
+`servidor.json`, en la raíz, la describe: ruta `/soporte/`, grupo `Soporte`, tipo `servidor`.
+GitHub construye su imagen en cada push a `main` (`.github/workflows/imagen.yml` →
+`ghcr.io/larceing/soporte:sha-xxxxxxx`) y el servidor la despliega desde Ajustes: **Añadir una
+aplicación** `larceing/soporte`, **Poner** la versión en DEV, probar en `dev.<dominio>/soporte/`,
+**Pasar a PRO** y, en PRO, **Poner en su dominio** (`soporte.luiscontacto03.com`). Sin scripts ni
+claves de SSH: el servidor mira `/version/` y, si una versión no responde, vuelve a la anterior.
 
-Subir cambios y aplicarlos, desde un cmd en esta carpeta:
+MantisBT y la base de datos no los despliega el servidor: siguen en su carpeta, una instalación por
+entorno, con `docker-compose.server.yml` y `scripts/instalar-servidor.sh`. Están en la red
+`proxy_default` para que el portal (`soporte-dev`, `soporte-pro`) llegue a ellos por su nombre.
+
+| Entorno | Carpeta | `.env` | Contenedores |
+|---|---|---|---|
+| PRO | `/opt/apps/incidencias` (la de siempre) | sin `NOMBRE` | `incidencias-mantis`, `incidencias-db` |
+| DEV | `/opt/apps/incidencias-dev` (`git clone` de este repositorio) | `NOMBRE=incidencias-dev` | `incidencias-dev-mantis`, `incidencias-dev-db` |
 
 ```
-tar -czf - --exclude=.git --exclude=.env --exclude=backups --exclude=gestor_peticiones --exclude=node_modules --exclude=EXAMPLE_* --exclude=config/config_inc.php . | ssh servidor "tar -xzf - -C /opt/apps/incidencias"
-ssh servidor "bash /opt/apps/incidencias/scripts/instalar-servidor.sh"
+cd /opt/apps/incidencias-dev && NOMBRE=incidencias-dev SIN_PORTAL=1 bash scripts/instalar-servidor.sh
 ```
 
-La primera ejecución instala todo, migra la hoja si existe `migracion/` y deja las claves en
-`credenciales-iniciales.txt`; las siguientes solo reconstruyen y reinician. El correo de MantisBT
-está desactivado en producción.
+El script deja en `app.env.portal` lo que el portal necesita de esa instalación (base de datos,
+MantisBT y su token, correo). Se añade a mano a `/opt/apps/servidor/apps/soporte/<entorno>/app.env`
+(el servidor conserva esas variables al desplegar): es lo único que todavía no hace Ajustes.
+`PORTAL_PROXIES=2` porque delante del portal van Nginx Proxy Manager y la entrada del entorno.
+
+Para cambiar MantisBT, su plugin o su configuración en un entorno: `git pull` en su carpeta y
+`bash scripts/instalar-servidor.sh` (reconstruye y reinicia; en DEV, con `SIN_PORTAL=1`). El correo
+de MantisBT está desactivado en el servidor: los avisos los envía el portal.
+
+**Paso a PRO del portal nuevo.** El portal de antes (`incidencias-web`, el que hoy sirve
+`soporte.luiscontacto03.com`) sigue hasta que `soporte-pro` funcione contra `incidencias-mantis` e
+`incidencias-db` (misma base de datos: no hay nada que migrar). Entonces, **Poner en su dominio**
+desde Ajustes (apunta el host del proxy al nuevo y guarda a dónde iba, para poder volver) y parar el
+de antes: `docker compose -p incidencias -f docker-compose.server.yml rm -s -f incidencias-web`.
 
 ## Migración de la hoja de Google
 

@@ -1,0 +1,13 @@
+{
+  "nombre": "Soporte",
+  "ruta": "soporte",
+  "grupo": "Soporte",
+  "puerto": 3000,
+  "prefijo": "quitar",
+  "version": "version/",
+  "despliegue": {
+    "tipo": "servidor",
+    "imagen": "ghcr.io/larceing/soporte",
+    "memoria_mb": 256
+  }
+}

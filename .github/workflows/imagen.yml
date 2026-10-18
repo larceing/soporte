@@ -1,0 +1,75 @@
+# Comprueba el código y, en cada push a main o release publicada, construye la
+# imagen del portal y la sube a GHCR (ghcr.io/larceing/soporte:sha-xxxxxxx).
+# Desplegarla la hace el servidor DEV/PRO desde Ajustes (servidor.json, tipo
+# "servidor"): aquí no hace falta ni SSH ni secretos.
+name: Imagen
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: servidor.json es JSON válido
+        run: node -e "JSON.parse(require('fs').readFileSync('servidor.json', 'utf8'))"
+      - name: sintaxis del portal
+        run: |
+          for f in portal/server.js portal/src/*.js portal/scripts/*.js portal/public/js/*.js; do
+            node --check "$f"
+          done
+      - name: prefijo de ruta
+        run: node portal/tests/ruta.js
+      - name: script del servidor
+        run: bash -n scripts/instalar-servidor.sh
+      - name: los compose se entienden
+        run: |
+          docker compose -f docker-compose.yml config -q
+          NOMBRE=prueba docker compose -f docker-compose.server.yml config -q
+
+  imagen:
+    needs: comprobar
+    if: github.event_name == 'push' || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "extra=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            echo "extra=main" >> "$GITHUB_OUTPUT"
+          fi
+          echo "imagen=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: portal
+          push: true
+          build-args: APP_VERSION=${{ steps.v.outputs.version }}
+          tags: |
+            ${{ steps.v.outputs.imagen }}:${{ steps.v.outputs.version }}
+            ${{ steps.v.outputs.imagen }}:${{ steps.v.outputs.extra }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

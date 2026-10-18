@@ -372,7 +372,7 @@ function documentoAcciones(doc) {
       doc.id + ', \'' + codigo + '\')">' + textoBoton + '</button>';
   };
 
-  const acciones = ['<a class="btn btn-secondary btn-sm" href="/api/documentos/' + doc.id + '/imprimir" target="_blank" rel="noopener">' +
+  const acciones = ['<a class="btn btn-secondary btn-sm" href="api/documentos/' + doc.id + '/imprimir" target="_blank" rel="noopener">' +
     (doc.estado === 'HISTORICO' ? 'Abrir PDF original' : 'Ver / PDF') + '</a>'];
 
   if (doc.tipo === 'PROFORMA' && doc.estado === 'PENDIENTE') {

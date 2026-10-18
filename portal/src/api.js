@@ -409,7 +409,7 @@ router.get('/documentos/:id/pdf', ruta(async (req, res) => {
 router.get('/documentos/:id/imprimir', ruta(async (req, res) => {
   const doc = await fact.documento(req.params.id);
   if (doc.estado === 'HISTORICO') return res.redirect('/api/documentos/' + doc.id + '/pdf');
-  res.type('html').send(documentoHtml(doc));
+  res.type('html').send(documentoHtml(doc, req.prefijo));
 }));
 
 module.exports = router;

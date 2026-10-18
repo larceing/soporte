@@ -6,16 +6,16 @@
   <meta name="robots" content="noindex">
   <meta name="referrer" content="no-referrer">
   <title>Contraseña nueva · Gestor de incidencias</title>
-  <link rel="icon" href="/img/monograma.svg">
+  <link rel="icon" href="img/monograma.svg">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/css/portal.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/portal.css">
 </head>
 
 <body>
   <main class="login">
     <div class="login-brand">
-      <img src="/img/monograma.svg" alt="">
+      <img src="img/monograma.svg" alt="">
       <div>
         <strong>Contraseña nueva</strong>
         <span>Gestor de incidencias</span>
@@ -41,7 +41,7 @@
         <button type="submit" id="boton" class="btn btn-primary">Guardar contraseña</button>
       </div>
 
-      <a class="login-link" href="/login">Volver a la pantalla de entrada</a>
+      <a class="login-link" href="login">Volver a la pantalla de entrada</a>
     </form>
   </main>
 
@@ -72,7 +72,7 @@
       boton.disabled = true;
 
       try {
-        const respuesta = await fetch('/api/restablecer', {
+        const respuesta = await fetch('api/restablecer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: token, nueva: nueva })
@@ -81,7 +81,7 @@
 
         if (respuesta.ok) {
           avisar('Contraseña cambiada. Te llevamos a la pantalla de entrada...', 'ok');
-          setTimeout(function() { location.href = '/login'; }, 1800);
+          setTimeout(function() { location.href = 'login'; }, 1800);
           return;
         }
         avisar(datos.error || 'No se ha podido cambiar la contraseña.', 'error');
