@@ -510,14 +510,15 @@
 
           <div class="panel">
             <h3>Contraseña</h3>
+            <p id="claveKeycloak" class="hidden">Entras con Keycloak: la contraseña se cambia allí.</p>
 
-            <div class="grid">
+            <div class="grid" id="claveCampos">
               <div class="field"><label for="claveActual">Contraseña actual</label><input id="claveActual" type="password" autocomplete="current-password"></div>
               <div class="field"><label for="claveNueva">Contraseña nueva (mínimo 10 caracteres)</label><input id="claveNueva" type="password" autocomplete="new-password"></div>
             </div>
 
             <div class="actions">
-              <button type="button" class="btn btn-primary" onclick="claveCambiar()">Cambiar contraseña</button>
+              <button type="button" class="btn btn-primary" id="claveBoton" onclick="claveCambiar()">Cambiar contraseña</button>
               <button type="button" class="btn btn-secondary" onclick="coreSalir()">Cerrar sesión</button>
             </div>
 

@@ -88,8 +88,10 @@ function coreMostrarVista(vista) {
 }
 
 async function coreSalir() {
-  await fetch('api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-  location.href = 'login';
+  const r = await fetch('api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  const datos = await r.json().catch(function() { return {}; });
+  // Con Keycloak, cerrar también su sesión (si no, se volvería a entrar solo).
+  location.href = datos.salir || 'login';
 }
 
 async function coreCargar() {

@@ -551,6 +551,10 @@ async function ajustesCargar() {
   const cuenta = resultados[2];
 
   document.getElementById('cuentaEmail').value = cuenta.email || '';
+  ['claveCampos', 'claveBoton'].forEach(function(id) {
+    document.getElementById(id).classList.toggle('hidden', !!cuenta.keycloak);
+  });
+  document.getElementById('claveKeycloak').classList.toggle('hidden', !cuenta.keycloak);
   document.getElementById('cuentaCorreoEstado').textContent = cuenta.correoActivo
     ? 'Se usa para recuperar la contraseña, avisarte de cada inicio de sesión y enviarte el resumen el día 1 de cada mes.'
     : 'El envío de correo no está configurado en este servidor: no se enviará nada.';

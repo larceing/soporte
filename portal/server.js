@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const db = require('./src/db');
 const auth = require('./src/auth');
+const sso = require('./src/sso');
 const api = require('./src/api');
 const resumen = require('./src/resumen');
 const { prefijoDe, conPrefijo } = require('./src/ruta');
@@ -79,10 +80,17 @@ app.use('/img', express.static(path.join(PUBLICO, 'img'), { redirect: false }));
 
 app.get('/login', async (req, res) => {
   if (await auth.usuarioDeSesion(req)) return res.redirect('/');
+  // Con Keycloak (AUTH_MODO=sso) la pantalla de entrada es la suya.
+  if (sso.activo()) return auth.irAKeycloak(req, res);
   res.sendFile(path.join(PUBLICO, 'login.html'));
 });
 
-app.get('/restablecer', (req, res) => res.sendFile(path.join(PUBLICO, 'restablecer.html')));
+app.get('/sso', (req, res, next) => auth.vueltaDeKeycloak(req, res).catch(next));
+
+app.get('/restablecer', (req, res) => {
+  if (sso.activo()) return res.redirect('/login');
+  res.sendFile(path.join(PUBLICO, 'restablecer.html'));
+});
 
 app.post('/api/login', (req, res, next) => auth.iniciarSesion(req, res).catch(next));
 app.post('/api/recuperar', (req, res, next) => auth.pedirRecuperacion(req, res).catch(next));
