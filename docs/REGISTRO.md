@@ -8,7 +8,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Pieza | Dónde | Notas |
 |---|---|---|
 | Código | https://github.com/larceing/soporte | Este repositorio (antes solo en el PC, en `DESARROLLO\gestor_incidecnias`). Imagen del portal: `ghcr.io/larceing/soporte` |
-| Aplicación (portal) | https://soporte.luiscontacto03.com | Contenedor `incidencias-web`, Node.js. En curso: pasa a ser la app `soporte` del servidor DEV/PRO (`soporte-dev`, `soporte-pro`), ver README |
+| Aplicación (portal) | https://soporte.luiscontacto03.com | App `soporte` del servidor DEV/PRO: contenedores `soporte-dev-app-1` y `soporte-pro-app-1` (imagen `ghcr.io/larceing/soporte`), entrada con Keycloak. DEV en https://dev.luiscontacto03.com/soporte/ |
 | Motor de incidencias | Solo redes internas del servidor | Contenedor `incidencias-mantis`, MantisBT 2.28.4 sin modificar |
 | Base de datos | Solo redes internas del servidor | Contenedor `incidencias-db`, MariaDB 11.4. Tablas `mantis_*` (MantisBT) y `ha_*` (portal) |
 | Servidor | `178.104.121.47`, Ubuntu 24.04, 2 CPU, 3,7 GB RAM | Carpeta `/opt/apps/incidencias`. Comparte máquina con citas, krearte y app_spsil |
@@ -98,6 +98,21 @@ y abrir http://localhost:8081.
 servicio); crear la instalación DEV en `/opt/apps/incidencias-dev`; dar de alta `larceing/soporte`
 en Ajustes y Poner en DEV con su `app.env`; Pasar a PRO contra la base de siempre y Poner en su
 dominio; parar `incidencias-web`; conectar Keycloak.
+
+### 2026-10-18 (noche)
+
+- Aplicado en el servidor: copia de la base (`backups/antes-dev-pro-2026-10-18-0038.sql`),
+  `/opt/apps/incidencias` pasa a ser copia del repositorio con el compose nuevo, instalación
+  DEV en `/opt/apps/incidencias-dev`, alta de `larceing/soporte` en Ajustes, `sha-eac856f`
+  en DEV y PRO, y PRO en su dominio `soporte.luiscontacto03.com` (el host de Nginx Proxy
+  Manager ya existía: Ajustes lo ha cambiado a `entrada-pro` y guarda el de antes).
+- Ajustes marca «Responde ✗ (404)» en el dominio: mira `/ajustes/salud`, que solo existe en
+  el panel. Fallo de la comprobación, no del portal.
+- Entrada con Keycloak (ver README). Lo del usuario local `admin` pasa a `henry`
+  (`PORTAL_ADMIN_SSO=henry` en el `app.env` de cada entorno).
+
+**Pendiente**: parar `incidencias-web`; las notas en MantisBT siguen firmadas por
+`administrator` (el usuario con el que el portal habla con MantisBT).
 
 ### 2026-10-12
 

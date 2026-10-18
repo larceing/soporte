@@ -126,6 +126,21 @@ de MantisBT está desactivado en el servidor: los avisos los envía el portal.
 desde Ajustes (apunta el host del proxy al nuevo y guarda a dónde iba, para poder volver) y parar el
 de antes: `docker compose -p incidencias -f docker-compose.server.yml rm -s -f incidencias-web`.
 
+### Entrada con Keycloak
+
+En el servidor DEV/PRO el portal entra con Keycloak (realm `general`), como las demás apps:
+el servidor le pone en su `app.env` `AUTH_MODO=sso` y su cliente (`soporte-dev`,
+`soporte-pro`). `/login` manda a la pantalla de Keycloak y vuelve a `/sso`
+(`portal/src/sso.js`). Entra quien administra la app: el grupo `/IT` o
+`/<ENTORNO>/Soporte/Admin`. El grupo `/<ENTORNO>/Soporte` sin `Admin` todavía no entra,
+porque el portal aún no tiene vista de cliente. Con Keycloak no hay contraseñas del
+portal: la entrada con usuario y contraseña, la recuperación y el cambio de contraseña
+quedan cerrados. Sin `AUTH_MODO=sso` (entorno local) todo sigue como antes.
+
+La primera vez que alguien entra se crea su usuario del portal. `PORTAL_ADMIN_SSO=henry`
+en el `app.env` hace que ese usuario de Keycloak herede el usuario local de antes
+(`PORTAL_ADMIN_USER`, normalmente `admin`) con todo lo suyo, en vez de empezar de cero.
+
 ## Migración de la hoja de Google
 
 `portal/scripts/migrar-hoja.js` carga los CSV de `migracion/` (hojas MacroData, Clientes, Pagos y

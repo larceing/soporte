@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { consulta } = require('./db');
 const correo = require('./correo');
+const sso = require('./sso');
 
 const COOKIE = 'ha_sesion';
 const DIAS_SESION = 30;
@@ -68,6 +69,8 @@ function opcionesCookie(req) {
 
 // Crea el primer usuario a partir del entorno si la tabla está vacía.
 async function asegurarAdmin() {
+  // Con Keycloak no hay usuario local: cada uno se crea al entrar por primera vez.
+  if (sso.activo()) return;
   const [{ total }] = await consulta('SELECT COUNT(*) AS total FROM ha_usuario');
   if (total > 0) return;
 
@@ -95,7 +98,32 @@ async function asegurarEmailAdmin() {
   await consulta("UPDATE ha_usuario SET email = ? WHERE usuario = ? AND email = ''", [email, usuario]);
 }
 
+// Abre la sesión del portal (cookie) para un usuario ya comprobado.
+async function abrirSesion(req, res, fila) {
+  const token = crypto.randomBytes(32).toString('hex');
+  await consulta(
+    'INSERT INTO ha_sesion (token_hash, usuario_id, caduca_en, creado_en) VALUES (?, ?, UTC_TIMESTAMP() + INTERVAL ? DAY, UTC_TIMESTAMP())',
+    [hashToken(token), fila.id, DIAS_SESION]
+  );
+  await consulta('DELETE FROM ha_sesion WHERE caduca_en < UTC_TIMESTAMP()');
+  res.cookie(COOKIE, token, opcionesCookie(req));
+
+  // El aviso no retrasa la entrada ni la impide si el correo falla.
+  if (fila.email) {
+    correo.avisoAcceso(fila.email, fila.usuario, {
+      ip: req.ip,
+      navegador: String(req.headers['user-agent'] || 'desconocido').slice(0, 160)
+    }).catch(() => {});
+  }
+}
+
+// Con Keycloak no hay contraseñas del portal.
+function soloLocal() {
+  if (sso.activo()) throw errorUsuario('La entrada es con Keycloak.', 404);
+}
+
 async function iniciarSesion(req, res) {
+  soloLocal();
   const ip = req.ip;
   const registro = fallos.get(ip);
   if (registro && registro.n >= MAX_FALLOS && Date.now() < registro.hasta) {
@@ -114,28 +142,86 @@ async function iniciarSesion(req, res) {
 
   fallos.delete(ip);
 
-  const token = crypto.randomBytes(32).toString('hex');
-  await consulta(
-    'INSERT INTO ha_sesion (token_hash, usuario_id, caduca_en, creado_en) VALUES (?, ?, UTC_TIMESTAMP() + INTERVAL ? DAY, UTC_TIMESTAMP())',
-    [hashToken(token), filas[0].id, DIAS_SESION]
-  );
-  await consulta('DELETE FROM ha_sesion WHERE caduca_en < UTC_TIMESTAMP()');
-
-  res.cookie(COOKIE, token, opcionesCookie(req));
+  await abrirSesion(req, res, filas[0]);
   res.json({ usuario: filas[0].usuario });
+}
 
-  // El aviso no retrasa la entrada ni la impide si el correo falla.
-  if (filas[0].email) {
-    correo.avisoAcceso(filas[0].email, filas[0].usuario, {
-      ip: ip,
-      navegador: String(req.headers['user-agent'] || 'desconocido').slice(0, 160)
-    }).catch(() => {});
+// ── Keycloak ──────────────────────────────────────────────────────────────
+const COOKIE_SSO = 'ha_sso';
+
+function pagina(res, status, titulo, texto, enlace) {
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  res.status(status).type('html').send('<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(titulo) + '</title>' +
+    '<link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/portal.css"></head>' +
+    '<body><main class="login"><div class="login-brand"><div><strong>' + esc(titulo) + '</strong>' +
+    '<span>' + esc(texto) + '</span></div></div>' +
+    '<a class="login-link" href="' + esc(enlace.url) + '">' + esc(enlace.texto) + '</a></main></body></html>');
+}
+
+// /login: a la pantalla de Keycloak, con un valor de un solo uso para la vuelta.
+function irAKeycloak(req, res) {
+  const estado = crypto.randomBytes(24).toString('hex');
+  res.cookie(COOKIE_SSO, estado, { ...opcionesCookie(req), maxAge: 10 * 60 * 1000 });
+  res.redirect(sso.urlLogin(req, estado));
+}
+
+// La fila del portal de quien entra por Keycloak; se crea la primera vez. Si
+// PORTAL_ADMIN_SSO es su usuario, hereda el usuario local de antes
+// (PORTAL_ADMIN_USER) con todo lo suyo: sesiones de trabajo, cronómetro, correos.
+async function filaDeKeycloak(p) {
+  const buscar = () => consulta('SELECT id, usuario, email FROM ha_usuario WHERE usuario = ?', [p.usuario]);
+  let [fila] = await buscar();
+  const hereda = process.env.PORTAL_ADMIN_SSO || '';
+  const local = process.env.PORTAL_ADMIN_USER || '';
+  if (!fila && hereda && local && hereda === p.usuario && local !== p.usuario) {
+    await consulta('UPDATE ha_usuario SET usuario = ? WHERE usuario = ?', [p.usuario, local]);
+    [fila] = await buscar();
+    if (fila) console.log('Keycloak: ' + p.usuario + ' hereda el usuario local ' + local);
   }
+  if (!fila) {
+    await consulta(
+      "INSERT IGNORE INTO ha_usuario (usuario, clave_hash, rol, email, creado_en) VALUES (?, '!keycloak', 'admin', ?, UTC_TIMESTAMP())",
+      [p.usuario, emailValido(p.email) ? p.email : '']
+    );
+    [fila] = await buscar();
+  }
+  return fila;
+}
+
+// /sso: vuelta de Keycloak.
+async function vueltaDeKeycloak(req, res) {
+  const estado = String(req.query.state || '');
+  const guardado = (String(req.headers.cookie || '').match(/(?:^|;\s*)ha_sso=([a-f0-9]{48})/) || [])[1];
+  res.clearCookie(COOKIE_SSO, { path: rutaCookie(req) });
+  const reintentar = { url: 'login', texto: 'Volver a entrar' };
+
+  if (!guardado || !req.query.code || estado.length !== guardado.length ||
+      !crypto.timingSafeEqual(Buffer.from(estado), Buffer.from(guardado))) {
+    return pagina(res, 400, 'No se ha podido entrar', 'La vuelta de Keycloak no es válida o ha caducado.', reintentar);
+  }
+
+  const p = await sso.completar(req, String(req.query.code)).catch((e) => {
+    console.error('Keycloak: ' + e.message);
+    return null;
+  });
+  if (!p) return pagina(res, 502, 'No se ha podido entrar', 'Keycloak no ha confirmado la entrada.', reintentar);
+
+  // Hoy el portal es solo de administración: entra quien administra la app (IT o …/Admin).
+  if (!p.entra || !p.admin) {
+    return pagina(res, 403, 'Sin acceso', p.usuario + ' no tiene acceso a este portal.',
+      { url: sso.urlLogout(req), texto: 'Entrar con otro usuario' });
+  }
+
+  const fila = await filaDeKeycloak(p);
+  await abrirSesion(req, res, fila);
+  res.redirect('/');
 }
 
 // Pide un enlace para restablecer la contraseña. Responde siempre lo mismo,
 // exista o no el usuario, para no revelar qué cuentas hay.
 async function pedirRecuperacion(req, res) {
+  soloLocal();
   const ip = req.ip;
   const registro = recuperaciones.get(ip);
   if (registro && registro.n >= MAX_RECUPERACIONES && Date.now() < registro.hasta) {
@@ -167,6 +253,7 @@ async function pedirRecuperacion(req, res) {
 // Cambia la contraseña con un enlace de recuperación: vale una sola vez y
 // cierra todas las sesiones abiertas.
 async function restablecer(req, res) {
+  soloLocal();
   const token = String((req.body && req.body.token) || '');
   const nueva = String((req.body && req.body.nueva) || '');
 
@@ -195,7 +282,7 @@ async function restablecer(req, res) {
 
 async function cuenta(req) {
   const [fila] = await consulta('SELECT usuario, rol, email FROM ha_usuario WHERE id = ?', [req.usuario.id]);
-  return { ...fila, correoActivo: correo.activo() };
+  return { ...fila, correoActivo: correo.activo(), keycloak: sso.activo() };
 }
 
 async function guardarEmail(req, email) {
@@ -221,11 +308,13 @@ async function cerrarSesion(req, res) {
     await consulta('DELETE FROM ha_sesion WHERE token_hash = ?', [hashToken(token)]);
   }
   res.clearCookie(COOKIE, { path: rutaCookie(req) });
-  res.json({ ok: true });
+  // Con Keycloak se cierra también su sesión; si no, la siguiente visita entraría sola.
+  res.json(sso.activo() ? { ok: true, salir: sso.urlLogout(req) } : { ok: true });
 }
 
 // Cambia la contraseña y cierra el resto de sesiones abiertas del usuario.
 async function cambiarClave(req, actual, nueva) {
+  soloLocal();
   const [fila] = await consulta('SELECT usuario, clave_hash, email FROM ha_usuario WHERE id = ?', [req.usuario.id]);
 
   if (!fila || !claveCorrecta(actual, fila.clave_hash)) throw errorUsuario('La contraseña actual no es correcta.');
@@ -269,6 +358,8 @@ module.exports = {
   asegurarAdmin,
   asegurarEmailAdmin,
   iniciarSesion,
+  irAKeycloak,
+  vueltaDeKeycloak,
   pedirRecuperacion,
   restablecer,
   cuenta,

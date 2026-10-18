@@ -29,8 +29,8 @@ jobs:
           for f in portal/server.js portal/src/*.js portal/scripts/*.js portal/public/js/*.js; do
             node --check "$f"
           done
-      - name: prefijo de ruta
-        run: node portal/tests/ruta.js
+      - name: prefijo de ruta y Keycloak
+        run: node portal/tests/ruta.js && node portal/tests/sso.js
       - name: script del servidor
         run: bash -n scripts/instalar-servidor.sh
       - name: los compose se entienden
