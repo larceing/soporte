@@ -375,6 +375,11 @@ function documentoAcciones(doc) {
   const acciones = ['<a class="btn btn-secondary btn-sm" href="api/documentos/' + doc.id + '/imprimir" target="_blank" rel="noopener">' +
     (doc.estado === 'HISTORICO' ? 'Abrir PDF original' : 'Ver / PDF') + '</a>'];
 
+  if (doc.estado !== 'ANULADA') {
+    acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="correoAbrirDocumento(' + doc.id +
+      ').catch(coreError)">Enviar por correo</button>');
+  }
+
   if (doc.tipo === 'PROFORMA' && doc.estado === 'PENDIENTE') {
     acciones.push(boton('btn-primary', 'facturar', 'Emitir factura'));
     acciones.push(boton('btn-secondary', 'anular', 'Anular'));

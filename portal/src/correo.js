@@ -29,7 +29,7 @@ async function llamar(ruta, cuerpo) {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + LLAVE(), 'Content-Type': 'application/json' },
     body: JSON.stringify(cuerpo),
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(cuerpo.adjuntos ? 60000 : 20000)
   });
   const datos = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, datos };
@@ -43,7 +43,9 @@ async function enviar(correo) {
 
   try {
     const r = await llamar('enviar', { ...correo, para, pie: correo.pie || PIE_AUTOMATICO });
-    if (r.ok) return { enviado: true };
+    // Un Mail anterior a los adjuntos envía el correo sin ellos y no lo dice.
+    const pedidos = (correo.adjuntos || []).length;
+    if (r.ok) return pedidos && r.datos.adjuntos !== pedidos ? { enviado: true, sinAdjuntos: true } : { enviado: true };
     console.error('Mail no ha enviado (' + r.status + '): ' + (r.datos.error || ''));
     return { enviado: false, motivo: r.datos.error || 'El servicio de correo no lo ha enviado (' + r.status + ').' };
   } catch (e) {
@@ -59,8 +61,12 @@ function bloquesPersonales({ mensaje, boton }) {
   return b;
 }
 
-function personal({ para, asunto, mensaje, boton }) {
-  return enviar({ para, asunto, bloques: [{ tipo: 'titulo', texto: asunto }, ...bloquesPersonales({ mensaje, boton })], pie: PIE_PERSONAL });
+// adjuntos: [{ nombre, contenido (base64) }], como los recibe Mail.
+function personal({ para, asunto, mensaje, boton, adjuntos }) {
+  return enviar({
+    para, asunto, bloques: [{ tipo: 'titulo', texto: asunto }, ...bloquesPersonales({ mensaje, boton })], pie: PIE_PERSONAL,
+    ...(adjuntos && adjuntos.length ? { adjuntos } : {})
+  });
 }
 
 // La vista previa de la pantalla Correo: la misma que hará Mail al enviar.
