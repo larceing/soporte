@@ -100,7 +100,10 @@ claves de SSH: el servidor mira `/version/` y, si una versión no responde, vuel
 
 MantisBT y la base de datos no los despliega el servidor: siguen en su carpeta, una instalación por
 entorno, con `docker-compose.server.yml` y `scripts/instalar-servidor.sh`. Están en la red
-`proxy_default` para que el portal (`soporte-dev`, `soporte-pro`) llegue a ellos por su nombre.
+`proxy_default` para que el portal (`soporte-dev`, `soporte-pro`) llegue a ellos por su nombre de
+contenedor. Los servicios del compose se llaman `mantis` y `bd`, no como los contenedores: Docker da
+a cada contenedor el nombre de su servicio en todas sus redes, y si se llamaran `incidencias-db`,
+ese nombre apuntaría también a la base de datos de DEV y PRO fallaría a ratos.
 
 | Entorno | Carpeta | `.env` | Contenedores |
 |---|---|---|---|
@@ -108,7 +111,7 @@ entorno, con `docker-compose.server.yml` y `scripts/instalar-servidor.sh`. Está
 | DEV | `/opt/apps/incidencias-dev` (`git clone` de este repositorio) | `NOMBRE=incidencias-dev` | `incidencias-dev-mantis`, `incidencias-dev-db` |
 
 ```
-cd /opt/apps/incidencias-dev && NOMBRE=incidencias-dev SIN_PORTAL=1 bash scripts/instalar-servidor.sh
+cd /opt/apps/incidencias-dev && NOMBRE=incidencias-dev bash scripts/instalar-servidor.sh
 ```
 
 El script deja en `app.env.portal` lo que el portal necesita de esa instalación (base de datos,
@@ -117,14 +120,12 @@ MantisBT y su token, correo). Se añade a mano a `/opt/apps/servidor/apps/soport
 `PORTAL_PROXIES=2` porque delante del portal van Nginx Proxy Manager y la entrada del entorno.
 
 Para cambiar MantisBT, su plugin o su configuración en un entorno: `git pull` en su carpeta y
-`bash scripts/instalar-servidor.sh` (reconstruye y reinicia; en DEV, con `SIN_PORTAL=1`). El correo
+`bash scripts/instalar-servidor.sh` (reconstruye y reinicia). El correo
 de MantisBT está desactivado en el servidor: los avisos los envía el portal.
 
-**Paso a PRO del portal nuevo.** El portal de antes (`incidencias-web`, el que hoy sirve
-`soporte.luiscontacto03.com`) sigue hasta que `soporte-pro` funcione contra `incidencias-mantis` e
-`incidencias-db` (misma base de datos: no hay nada que migrar). Entonces, **Poner en su dominio**
-desde Ajustes (apunta el host del proxy al nuevo y guarda a dónde iba, para poder volver) y parar el
-de antes: `docker compose -p incidencias -f docker-compose.server.yml rm -s -f incidencias-web`.
+El portal de antes (`incidencias-web`) ya no está en el compose: `soporte.luiscontacto03.com` va al
+portal nuevo desde **Poner en su dominio**, y `instalar-servidor.sh` quita el contenedor viejo
+(`--remove-orphans`).
 
 ### Entrada con Keycloak
 
