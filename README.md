@@ -161,6 +161,13 @@ MAIL_LLAVE=ml_…        # en Mail → Llaves, app «soporte»
 
 Sin esas dos el portal funciona igual pero no envía nada (ni la vista previa de Correo).
 
+**Documentos por correo.** En Cobros → Documentos, «Enviar por correo» abre Correo con el
+destinatario (el correo del cliente), el asunto y el mensaje escritos y el PDF del documento
+adjunto. Los documentos históricos llevan su PDF original; los demás, la misma página de
+«Ver / PDF» impresa por Chromium dentro de la imagen (`portal/src/pdf.js`). Hace falta una
+versión de Mail con adjuntos: si Mail es anterior, el correo sale sin el PDF y el portal lo
+avisa. Fuera de la imagen, `CHROMIUM_RUTA` dice dónde está Chromium.
+
 ### Entrada con Keycloak
 
 En el servidor DEV/PRO el portal entra con Keycloak (realm `general`), como las demás apps:

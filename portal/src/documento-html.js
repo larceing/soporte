@@ -40,7 +40,10 @@ function dinero(valor, moneda) {
   return esc(partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + partes[1] + ' ' + (moneda || '€'));
 }
 
-function documentoHtml(doc, prefijo) {
+// opciones.logo: la imagen del logo ya incrustada (data:…), para imprimir el
+// PDF sin red. Si no, la del portal.
+function documentoHtml(doc, prefijo, opciones) {
+  const logo = (opciones && opciones.logo) || (prefijo || '') + '/img/monograma.svg';
   const m = MARCA;
   const datos = datosDe(doc);
   const emisor = datos.emisor || {};
@@ -148,7 +151,7 @@ function documentoHtml(doc, prefijo) {
     // Cabecera de marca
     '<table style="width:100%;border-collapse:collapse;"><tr>' +
       '<td style="background:' + m.oscuro + ';padding:20px 0 20px 22px;width:50px;vertical-align:middle;">' +
-        '<img src="' + (prefijo || '') + '/img/monograma.svg" width="50" height="50" alt=""></td>' +
+        '<img src="' + logo + '" width="50" height="50" alt=""></td>' +
       '<td style="background:' + m.oscuro + ';padding:20px 14px;vertical-align:middle;">' +
         '<div style="color:#FFFFFF;font-size:19px;font-weight:bold;letter-spacing:1px;">' + esc(m.nombre) + '</div>' +
         '<div style="color:' + m.acento + ';font-size:9px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;padding-top:3px;">' + esc(m.lema) + '</div>' +

@@ -136,6 +136,9 @@ const TABLAS = [
      enviado_en DATETIME NOT NULL,
      INDEX idx_ha_correo_incidencia (incidencia_id)
    )`,
+  // Correos que llevan el PDF de un documento: cuál y con qué nombre salió.
+  `ALTER TABLE ha_correo ADD COLUMN IF NOT EXISTS documento_id INT UNSIGNED NULL`,
+  `ALTER TABLE ha_correo ADD COLUMN IF NOT EXISTS adjunto VARCHAR(255) NOT NULL DEFAULT ''`,
   // PDF originales de documentos emitidos antes de existir el portal.
   `CREATE TABLE IF NOT EXISTS ha_documento_pdf (
      documento_id INT UNSIGNED PRIMARY KEY,
