@@ -369,6 +369,15 @@ router.post('/clientes', ruta(async (req, res) => {
   res.json(await fact.clienteGuardar(req.body || {}));
 }));
 
+// Emisor, clientes y tarifa en el formato que importa Sindri (Empresa → Llevar y traer datos).
+router.get('/exportar-sindri', ruta(async (req, res) => {
+  const { datosParaSindri } = require('./exportar-sindri');
+  const clientes = await consulta('SELECT * FROM ha_cliente ORDER BY nombre');
+  const fecha = new Date().toISOString().slice(0, 10);
+  res.set('Content-Disposition', `attachment; filename="gestor-para-sindri-${fecha}.json"`);
+  res.json(datosParaSindri(await fact.config(), clientes));
+}));
+
 /* Trabajos y cobros */
 
 router.get('/trabajos', ruta(async (req, res) => {

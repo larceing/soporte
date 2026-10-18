@@ -198,6 +198,14 @@ Los PDF que el gestor antiguo guardó en Drive se importan con
 `portal/scripts/importar-documentos.js` desde `migracion/documentos/` (un `indice.json` y un
 `<id>.pdf` por documento). Quedan como resúmenes históricos con su PDF original.
 
+## Llevar los datos a Sindri
+
+En **Ajustes**, «Descargar para Sindri» da un `.json` con el emisor, los clientes (con su contacto)
+y la tarifa general como producto «HORA». En Sindri se importa en **Empresa → Llevar y traer
+datos**: primero enseña qué haría y no guarda nada hasta pulsar «Importar». No borra nada y, si se
+repite, actualiza los clientes por NIF en vez de duplicarlos. Las incidencias, horas y documentos
+siguen en el gestor.
+
 ## Pruebas de casuística
 
 `portal/tests/casuistica.js` recorre los grafos de estados (incidencia, cronómetro, trabajo y
