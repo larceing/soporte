@@ -7,6 +7,7 @@ const { documentoHtml } = require('./documento-html');
 const resumen = require('./resumen');
 const correo = require('./correo');
 const pdf = require('./pdf');
+const sindri = require('./sindri');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
 const router = express.Router();
@@ -391,6 +392,38 @@ router.get('/cobros/pendiente', ruta(async (req, res) => {
 
 router.post('/cobros/cobrar', ruta(async (req, res) => {
   await fact.cobrarPeriodo(req.body || {});
+  res.json({ ok: true });
+}));
+
+/* Sindri: clientes y facturación central (src/sindri.js) */
+
+router.get('/sindri', ruta(async (req, res) => {
+  res.json(await sindri.estado());
+}));
+
+router.get('/sindri/clientes', ruta(async (req, res) => {
+  res.json(await sindri.clientes(req.query.q));
+}));
+
+router.post('/sindri/vincular', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await sindri.vincular(b.clienteId, b.sindriId));
+}));
+
+router.post('/sindri/importar', ruta(async (req, res) => {
+  res.json(await sindri.importar((req.body || {}).sindriId));
+}));
+
+router.post('/sindri/enviar', ruta(async (req, res) => {
+  res.json(await sindri.enviar(req.body || {}));
+}));
+
+router.post('/sindri/actualizar', ruta(async (req, res) => {
+  res.json(await sindri.actualizar());
+}));
+
+router.post('/trabajos/:id/retirar-sindri', ruta(async (req, res) => {
+  await sindri.retirar(req.params.id);
   res.json({ ok: true });
 }));
 

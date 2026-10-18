@@ -37,6 +37,10 @@ services:
       PORTAL_URL: ${PORTAL_URL:-}
       MAIL_URL: ${MAIL_URL:-}
       MAIL_LLAVE: ${MAIL_LLAVE:-}
+      SINDRI_URL: ${SINDRI_URL:-}
+      SINDRI_LLAVE: ${SINDRI_LLAVE:-}
+      SINDRI_PRODUCTO: ${SINDRI_PRODUCTO:-}
+      SINDRI_PRODUCTO_GASTO: ${SINDRI_PRODUCTO_GASTO:-}
     volumes:
       - ./portal/server.js:/app/server.js:ro
       - ./portal/src:/app/src:ro

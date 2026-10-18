@@ -263,6 +263,7 @@
             <button type="button" class="chip" data-ses="PENDIENTE" onclick="sesionesFiltrar('PENDIENTE')">Pendientes</button>
             <button type="button" class="chip" data-ses="COBRADO" onclick="sesionesFiltrar('COBRADO')">Cobradas</button>
             <button type="button" class="chip" data-ses="NO_COBRAR" onclick="sesionesFiltrar('NO_COBRAR')">No se cobran</button>
+            <button type="button" class="chip hidden" data-ses="SINDRI" data-sindri onclick="sesionesFiltrar('SINDRI')">En Sindri</button>
           </div>
 
           <div class="panel panel-filtros">
@@ -483,6 +484,23 @@
 
             <div class="actions">
               <button type="button" class="btn btn-primary" onclick="clienteGuardar()">Guardar cliente</button>
+            </div>
+          </div>
+
+          <div id="sindriPanel" class="panel hidden">
+            <h3>Sindri</h3>
+            <p id="sindriEstado" class="det-desc" style="margin-bottom:12px"></p>
+            <div id="sindriLigar" class="hidden">
+              <div class="grid">
+                <div class="field field-full">
+                  <label for="sindriCliente">Cliente en Sindri</label>
+                  <select id="sindriCliente"></select>
+                </div>
+              </div>
+              <div class="actions">
+                <button type="button" class="btn btn-primary" onclick="sindriLigar()">Ligar con el cliente</button>
+                <button type="button" class="btn btn-secondary" onclick="sindriImportar()">Traer como cliente nuevo</button>
+              </div>
             </div>
           </div>
 

@@ -168,6 +168,29 @@ adjunto. Los documentos históricos llevan su PDF original; los demás, la misma
 versión de Mail con adjuntos: si Mail es anterior, el correo sale sin el PDF y el portal lo
 avisa. Fuera de la imagen, `CHROMIUM_RUTA` dice dónde está Chromium.
 
+### Sindri: clientes y facturación central
+
+Sindri (`larceing/sindri`) es donde la empresa tiene sus clientes y factura. Con una llave de
+integración el portal se conecta a una empresa de Sindri. En el `app.env`:
+
+```
+SINDRI_URL=http://sindri-<entorno>:8000
+SINDRI_LLAVE=sdi_…        # en Sindri → Empresa → Integraciones, nombre «incidencias»
+SINDRI_PRODUCTO=HORA      # sku del producto de las horas (HORA si no se pone)
+SINDRI_PRODUCTO_GASTO=    # sku de los gastos sueltos (si no, el de las horas)
+```
+
+- **Ajustes → Sindri** liga el cliente del portal con su cliente de Sindri, o lo trae de allí.
+- **Cobros → Pendiente → Mandar a Sindri** manda las sesiones y gastos del periodo de clientes
+  ligados que no estén en una proforma o factura del portal. Aparecen en Sindri → Pedidos → Por
+  facturar (una sesión, sus horas a la tarifa del portal; un gasto, su importe). Mandar otra vez
+  no duplica nada.
+- Desde ese momento se facturan en Sindri: aquí dejan de salir como pendientes y en **Sesiones →
+  En Sindri** se ve si siguen por facturar o en qué pedido están. Mientras sigan por facturar,
+  «Retirar de Sindri» los devuelve al portal.
+
+Sin esas variables el portal funciona igual que siempre.
+
 ### Entrada con Keycloak
 
 En el servidor DEV/PRO el portal entra con Keycloak (realm `general`), como las demás apps:
