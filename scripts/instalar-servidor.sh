@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
-# Instala o actualiza MantisBT y la base de datos del gestor en el servidor (y,
-# hasta que el portal nuevo esté en su dominio, el portal de antes). Se ejecuta
-# desde la carpeta de la instalación:
+# Instala o actualiza MantisBT y la base de datos del gestor en el servidor. Se
+# ejecuta desde la carpeta de la instalación:
 #
-#   bash scripts/instalar-servidor.sh                                  # PRO: /opt/apps/incidencias
-#   NOMBRE=incidencias-dev SIN_PORTAL=1 bash scripts/instalar-servidor.sh   # DEV: /opt/apps/incidencias-dev
+#   bash scripts/instalar-servidor.sh                        # PRO: /opt/apps/incidencias
+#   NOMBRE=incidencias-dev bash scripts/instalar-servidor.sh # DEV: /opt/apps/incidencias-dev
 #
-# NOMBRE da nombre a los contenedores (<NOMBRE>-mantis, <NOMBRE>-db, ...) y al
+# NOMBRE da nombre a los contenedores (<NOMBRE>-mantis, <NOMBRE>-db) y al
 # proyecto de Docker; se guarda en .env la primera vez y después sale de ahí.
-# SIN_PORTAL=1 no arranca el portal de antes (incidencias-web): el portal lo
-# despliega el servidor DEV/PRO desde su imagen, y lo que necesita saber de esta
-# instalación queda en app.env.portal, para añadirlo a
+# El portal lo despliega el servidor DEV/PRO desde su imagen; lo que necesita
+# saber de esta instalación queda en app.env.portal, para añadirlo a
 # /opt/apps/servidor/apps/soporte/<entorno>/app.env.
 #
 # La primera vez genera las contraseñas, instala MantisBT, crea el proyecto y
-# el token de la API y, si hay portal y existe migracion/ con los CSV de la
-# hoja, carga el historial. Las claves iniciales quedan en
-# credenciales-iniciales.txt. Las siguientes veces solo reconstruye y reinicia.
+# el token de la API. Las claves iniciales quedan en credenciales-iniciales.txt.
+# Las siguientes veces solo reconstruye y reinicia (y quita contenedores que ya
+# no están en el compose, como el portal de antes).
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 cd "$(dirname "$0")/.."
-mkdir -p migracion
-
 NOMBRE_PEDIDO=${NOMBRE:-}
 if [ ! -f .env ]; then
 	( umask 077
@@ -36,13 +32,9 @@ if [ -n "$NOMBRE_PEDIDO" ] && [ "$NOMBRE_PEDIDO" != "$NOMBRE" ]; then
 	echo "Esta instalación es '$NOMBRE' (según .env), no '$NOMBRE_PEDIDO'." >&2
 	exit 1
 fi
-SIN_PORTAL=${SIN_PORTAL:-0}
 
 COMPOSE="docker compose -p $NOMBRE -f docker-compose.server.yml"
 MANTIS=$NOMBRE-mantis
-PORTAL=$NOMBRE-web
-SERVICIOS="incidencias-db incidencias-mantis"
-[ "$SIN_PORTAL" = 1 ] || SERVICIOS="$SERVICIOS incidencias-web"
 
 # Lo que el portal del servidor DEV/PRO necesita de esta instalación.
 escribir_app_env() {
@@ -72,14 +64,13 @@ EOF
 }
 
 if [ -f config/config_inc.php ]; then
-	# shellcheck disable=SC2086
-	$COMPOSE up -d --build $SERVICIOS
+	$COMPOSE up -d --build --remove-orphans
 	escribir_app_env
 	echo "Ya estaba instalado: contenedores actualizados."
 	exit 0
 fi
 
-$COMPOSE up -d --build incidencias-db incidencias-mantis
+$COMPOSE up -d --build --remove-orphans
 
 echo "Esperando a MantisBT..."
 for _ in $(seq 1 30); do
@@ -134,23 +125,9 @@ fi
 printf 'MANTIS_API_TOKEN=%s\n' "$TOKEN" >> .env
 MANTIS_API_TOKEN=$TOKEN
 
-if [ "$SIN_PORTAL" != 1 ]; then
-	$COMPOSE up -d --build incidencias-web
-
-	echo "Esperando al portal..."
-	for _ in $(seq 1 30); do
-		docker logs "$PORTAL" 2>&1 | grep -q "Portal escuchando" && break
-		sleep 2
-	done
-
-	if [ -f migracion/Peticiones.csv ]; then
-		docker exec "$PORTAL" node scripts/migrar-hoja.js /migracion
-	fi
-fi
-
 ( umask 077
-  printf 'PORTAL (lo que se usa a diario)\nUsuario: %s\nContraseña: %s\n\nMANTISBT (solo administración interna)\nUsuario: administrator\nContraseña: %s\n' \
-	"$PORTAL_ADMIN_USER" "$PORTAL_ADMIN_PASSWORD" "$MANTIS_ADMIN_PASSWORD" > credenciales-iniciales.txt )
+  printf 'MANTISBT (solo administración interna)\nUsuario: administrator\nContraseña: %s\n' \
+	"$MANTIS_ADMIN_PASSWORD" > credenciales-iniciales.txt )
 
 escribir_app_env
 echo

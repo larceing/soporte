@@ -1,48 +1,22 @@
 # MantisBT y la base de datos en el servidor, una instalación por entorno.
 #
-# El portal ya no sale de aquí: lo despliega el servidor DEV/PRO desde la imagen
+# El portal no sale de aquí: lo despliega el servidor DEV/PRO desde la imagen
 # ghcr.io/larceing/soporte (servidor.json) como contenedor soporte-<entorno>,
 # que solo está en la red del proxy. Por eso MantisBT y la base de datos están
-# también en esa red: el portal llega a ellos por su nombre.
+# también en esa red: el portal llega a ellos por su nombre de contenedor.
 #
-# NOMBRE (en .env) distingue las instalaciones: incidencias (PRO, la de siempre)
-# e incidencias-dev (DEV). El servicio incidencias-web es el portal de antes: en
-# PRO sigue hasta que el nuevo esté en su dominio; en DEV no se arranca
-# (SIN_PORTAL=1 en instalar-servidor.sh). Sin puertos publicados.
+# NOMBRE (en .env) distingue las instalaciones: incidencias (PRO) e
+# incidencias-dev (DEV). Sin puertos publicados.
+#
+# Los servicios se llaman «mantis» y «bd», no <NOMBRE>-mantis ni <NOMBRE>-db:
+# Docker da a cada contenedor el nombre de su servicio en todas sus redes, y DEV
+# y PRO comparten proxy_default. Si el servicio se llamara como el contenedor de
+# PRO, «incidencias-db» apuntaría también a la base de datos de DEV. Nadie debe
+# usar «mantis» ni «bd» desde fuera: solo los nombres de contenedor.
 name: ${NOMBRE:-incidencias}
 
 services:
-  incidencias-web:
-    image: ${NOMBRE:-incidencias}-portal:latest
-    build: ./portal
-    container_name: ${NOMBRE:-incidencias}-web
-    restart: unless-stopped
-    environment:
-      PORT: "80"
-      DB_HOST: ${NOMBRE:-incidencias}-db
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      MANTIS_URL: http://${NOMBRE:-incidencias}-mantis
-      MANTIS_API_TOKEN: ${MANTIS_API_TOKEN:-}
-      MANTIS_PROJECT: SPSIL
-      PORTAL_ADMIN_USER: ${PORTAL_ADMIN_USER}
-      PORTAL_ADMIN_PASSWORD: ${PORTAL_ADMIN_PASSWORD}
-      PORTAL_ADMIN_EMAIL: ${PORTAL_ADMIN_EMAIL:-}
-      PORTAL_URL: ${PORTAL_URL:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      CORREO_REMITENTE: ${CORREO_REMITENTE:-}
-      PORTAL_COOKIE_SECURE: "1"
-    volumes:
-      - ./migracion:/migracion:ro
-    depends_on:
-      incidencias-db:
-        condition: service_healthy
-    networks:
-      - internal
-      - proxy_default
-
-  incidencias-mantis:
+  mantis:
     image: ${NOMBRE:-incidencias}-mantis:latest
     build: ./docker/web
     container_name: ${NOMBRE:-incidencias}-mantis
@@ -53,13 +27,13 @@ services:
       - ./scripts:/var/www/scripts:ro
       - ./docker/web/produccion.conf:/etc/apache2/conf-enabled/zz-produccion.conf:ro
     depends_on:
-      incidencias-db:
+      bd:
         condition: service_healthy
     networks:
       - internal
       - proxy_default
 
-  incidencias-db:
+  bd:
     image: mariadb:11.4
     container_name: ${NOMBRE:-incidencias}-db
     restart: unless-stopped

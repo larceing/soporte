@@ -12,7 +12,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Motor de incidencias | Solo redes internas del servidor | Contenedor `incidencias-mantis`, MantisBT 2.28.4 sin modificar |
 | Base de datos | Solo redes internas del servidor | Contenedor `incidencias-db`, MariaDB 11.4. Tablas `mantis_*` (MantisBT) y `ha_*` (portal) |
 | Servidor | `178.104.121.47`, Ubuntu 24.04, 2 CPU, 3,7 GB RAM | Carpeta `/opt/apps/incidencias`. Comparte máquina con citas, krearte y app_spsil |
-| Proxy y HTTPS | Nginx Proxy Manager en `/opt/apps/proxy` | Host `soporte.luiscontacto03.com` → `incidencias-web:80`, certificado Let's Encrypt |
+| Proxy y HTTPS | Nginx Proxy Manager en `/opt/apps/proxy` | Host `soporte.luiscontacto03.com` → `entrada-pro` (lo cambia Ajustes con «Poner en su dominio»), certificado Let's Encrypt |
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
 | Envío de correo | Resend, región Irlanda | Remitente `soporte@luiscontacto03.com` |
 | Recepción de correo | Cloudflare Email Routing | `soporte@` e `info@luiscontacto03.com` → Gmail personal. `info@` es el contacto del portafolio |
@@ -53,9 +53,9 @@ van entre comillas dobles.
 
 Subir cambios a producción, desde un cmd en esta carpeta (los comandos completos están en el README):
 
-1. Copia de la base de datos en el servidor, en `/opt/apps/incidencias/backups/`.
-2. Subir la carpeta con `tar` por `ssh`.
-3. `bash scripts/instalar-servidor.sh` en el servidor: reconstruye y reinicia.
+- Portal: desde Ajustes del servidor (Poner en DEV, Pasar a PRO).
+- MantisBT o la base de datos: copia de la base en `/opt/apps/incidencias/backups/`, `git pull`
+  en la carpeta del entorno y `bash scripts/instalar-servidor.sh`: reconstruye y reinicia.
 
 Restaurar una copia en el servidor:
 
@@ -63,7 +63,7 @@ Restaurar una copia en el servidor:
 ssh servidor
 cd /opt/apps/incidencias
 docker exec -i incidencias-db sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" mantisbt' < backups/FICHERO.sql
-docker restart incidencias-web
+docker restart soporte-pro-app-1
 ```
 
 Entrar a MantisBT en producción (no es público): con un túnel SSH,
@@ -111,7 +111,14 @@ dominio; parar `incidencias-web`; conectar Keycloak.
 - Entrada con Keycloak (ver README). Lo del usuario local `admin` pasa a `henry`
   (`PORTAL_ADMIN_SSO=henry` en el `app.env` de cada entorno).
 
-**Pendiente**: parar `incidencias-web`; las notas en MantisBT siguen firmadas por
+- «Error interno» a ratos en PRO: la base de datos y MantisBT de DEV también respondían en
+  `proxy_default` a `incidencias-db` e `incidencias-mantis` (Docker da a cada contenedor el
+  nombre de su servicio en todas sus redes), y PRO a veces llegaba a los de DEV, que le
+  rechazaban la contraseña. No se mezcló ningún dato. Arreglo rápido: reconectar los dos de DEV
+  a `proxy_default` solo con su nombre. Arreglo fijo: los servicios del compose pasan a llamarse
+  `mantis` y `bd`, y sale de él el portal de antes (`incidencias-web`).
+
+**Pendiente**: las notas en MantisBT siguen firmadas por
 `administrator` (el usuario con el que el portal habla con MantisBT).
 
 ### 2026-10-12
