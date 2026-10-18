@@ -1,6 +1,6 @@
 const express = require('express');
 const { consulta } = require('./db');
-const mantis = require('./mantis');
+const incidencias = require('./incidencias');
 const fact = require('./facturacion');
 const auth = require('./auth');
 const { documentoHtml } = require('./documento-html');
@@ -27,12 +27,12 @@ async function conSesiones(incidencia) {
   return { ...incidencia, sesiones: await fact.trabajos({ incidenciaId: incidencia.id }) };
 }
 
-// Guarda una nota en MantisBT y, si lleva tiempo, la sesión facturable. El
+// Guarda una nota en la incidencia y, si lleva tiempo, la sesión facturable. El
 // tiempo solo se registra en incidencias abiertas: si ya está resuelta hay que
 // reabrirla, y así el seguimiento refleja que se volvió a trabajar en ella.
-async function registrarNota(incidenciaId, nota, minutos) {
+async function registrarNota(incidenciaId, nota, minutos, autor) {
   if (minutos > 0) {
-    const previa = await mantis.obtener(incidenciaId);
+    const previa = await incidencias.obtener(incidenciaId);
     if (!previa.abierta) {
       throw new ErrorUsuario('La incidencia está ' + previa.estadoTexto.toLowerCase() +
         '. Reábrela para registrar más tiempo.', 409);
@@ -40,7 +40,7 @@ async function registrarNota(incidenciaId, nota, minutos) {
     if (minutos > 24 * 60) throw new ErrorUsuario('Una sesión no puede superar las 24 horas.');
   }
 
-  const { notaId, incidencia } = await mantis.anadirNota(incidenciaId, { texto: nota, minutos: minutos });
+  const { notaId, incidencia } = await incidencias.anadirNota(incidenciaId, { texto: nota, minutos: minutos, autor: autor });
 
   if (minutos > 0) {
     await fact.trabajoDeTiempo({
@@ -90,11 +90,11 @@ router.post('/cuenta/clave', ruta(async (req, res) => {
 /* Incidencias */
 
 router.get('/catalogo', ruta(async (req, res) => {
-  res.json({ tipos: TIPOS, estados: mantis.ESTADOS, prioridades: mantis.PRIORIDADES });
+  res.json({ tipos: TIPOS, estados: incidencias.ESTADOS, prioridades: incidencias.PRIORIDADES });
 }));
 
 router.get('/incidencias', ruta(async (req, res) => {
-  res.json(await mantis.listar());
+  res.json(await incidencias.listar());
 }));
 
 router.post('/incidencias', ruta(async (req, res) => {
@@ -103,20 +103,21 @@ router.post('/incidencias', ruta(async (req, res) => {
   if (!titulo) throw new ErrorUsuario('Escribe un título.');
 
   const prioridad = req.body.prioridad || 'normal';
-  if (!elegibles(mantis.PRIORIDADES).includes(prioridad)) throw new ErrorUsuario('Prioridad no válida.');
+  if (!elegibles(incidencias.PRIORIDADES).includes(prioridad)) throw new ErrorUsuario('Prioridad no válida.');
   if (req.body.limite && !esDia(req.body.limite)) throw new ErrorUsuario('Fecha límite no válida.');
 
-  res.status(201).json(await conSesiones(await mantis.crear({
+  res.status(201).json(await conSesiones(await incidencias.crear({
     tipo: tipo,
     titulo: titulo,
     descripcion: texto(req.body.descripcion, 20000),
     prioridad: prioridad,
-    limite: req.body.limite || ''
+    limite: req.body.limite || '',
+    autor: req.usuario.usuario
   })));
 }));
 
 router.get('/incidencias/:id', ruta(async (req, res) => {
-  res.json(await conSesiones(await mantis.obtener(req.params.id)));
+  res.json(await conSesiones(await incidencias.obtener(req.params.id)));
 }));
 
 // Seguimiento: título, descripción, tipo, estado, prioridad y fecha límite.
@@ -138,11 +139,11 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
     cambios.tipo = b.tipo;
   }
   if (b.estado !== undefined) {
-    if (!elegibles(mantis.ESTADOS).includes(b.estado)) throw new ErrorUsuario('Estado no válido.');
+    if (!elegibles(incidencias.ESTADOS).includes(b.estado)) throw new ErrorUsuario('Estado no válido.');
     cambios.estado = b.estado;
   }
   if (b.prioridad !== undefined) {
-    if (!elegibles(mantis.PRIORIDADES).includes(b.prioridad)) throw new ErrorUsuario('Prioridad no válida.');
+    if (!elegibles(incidencias.PRIORIDADES).includes(b.prioridad)) throw new ErrorUsuario('Prioridad no válida.');
     cambios.prioridad = b.prioridad;
   }
   if (b.limite !== undefined) {
@@ -158,7 +159,7 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
     }
   }
 
-  res.json(await conSesiones(await mantis.actualizar(req.params.id, cambios)));
+  res.json(await conSesiones(await incidencias.actualizar(req.params.id, cambios)));
 }));
 
 router.post('/incidencias/:id/notas', ruta(async (req, res) => {
@@ -166,7 +167,7 @@ router.post('/incidencias/:id/notas', ruta(async (req, res) => {
   const minutos = Math.max(0, Math.round(Number(req.body.minutos) || 0));
   if (!nota && !minutos) throw new ErrorUsuario('Escribe una nota o indica el tiempo.');
 
-  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos)));
+  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos, req.usuario.usuario)));
 }));
 
 router.post('/incidencias/:id/adjuntos', ruta(async (req, res) => {
@@ -177,11 +178,11 @@ router.post('/incidencias/:id/adjuntos', ruta(async (req, res) => {
 
   if (!/^[A-Za-z0-9+/]+=*$/.test(contenido)) throw new ErrorUsuario('El fichero no ha llegado bien. Vuelve a intentarlo.');
 
-  res.status(201).json(await conSesiones(await mantis.adjuntar(req.params.id, nombre, contenido)));
+  res.status(201).json(await conSesiones(await incidencias.adjuntar(req.params.id, nombre, contenido, req.usuario.usuario)));
 }));
 
 router.get('/incidencias/:id/adjuntos/:adjuntoId', ruta(async (req, res) => {
-  const fichero = await mantis.adjunto(req.params.id, req.params.adjuntoId);
+  const fichero = await incidencias.adjunto(req.params.id, req.params.adjuntoId);
   res.set({
     'Content-Type': 'application/octet-stream',
     'Content-Disposition': "attachment; filename*=UTF-8''" + encodeURIComponent(fichero.nombre)
@@ -200,14 +201,14 @@ router.post('/cronometro/iniciar', ruta(async (req, res) => {
     throw new ErrorUsuario('Ya hay un cronómetro en marcha. Páralo antes de empezar otro.', 409);
   }
 
-  let incidencia = await mantis.obtener(req.body.incidenciaId);
+  let incidencia = await incidencias.obtener(req.body.incidenciaId);
   if (!incidencia.abierta) {
     throw new ErrorUsuario('La incidencia está ' + incidencia.estadoTexto.toLowerCase() +
       '. Reábrela para seguir trabajando en ella.', 409);
   }
   // Empezar a trabajar en una incidencia nueva la pone en curso.
   if (incidencia.estado === 'new') {
-    incidencia = await mantis.actualizar(incidencia.id, { estado: 'assigned' });
+    incidencia = await incidencias.actualizar(incidencia.id, { estado: 'assigned' });
   }
 
   await consulta(
@@ -229,7 +230,7 @@ router.post('/cronometro/parar', ruta(async (req, res) => {
 
   let incidencia;
   try {
-    incidencia = await registrarNota(activo.incidenciaId, texto(req.body.texto, 20000), minutos);
+    incidencia = await registrarNota(activo.incidenciaId, texto(req.body.texto, 20000), minutos, req.usuario.usuario);
   } catch (err) {
     // Si la incidencia ya no existe o se cerró por otro lado, el cronómetro
     // no debe quedarse bloqueado para siempre.
@@ -286,7 +287,7 @@ router.post('/correo/enviar', ruta(async (req, res) => {
   const c = correoDe(req.body || {}, true);
 
   // Si va ligado a una incidencia, tiene que existir antes de enviar nada.
-  const incidenciaId = req.body.incidenciaId ? (await mantis.obtener(req.body.incidenciaId)).id : null;
+  const incidenciaId = req.body.incidenciaId ? (await incidencias.obtener(req.body.incidenciaId)).id : null;
 
   const resultado = await correo.personal(c);
   if (!resultado.enviado) throw new ErrorUsuario(resultado.motivo, 502);
@@ -300,9 +301,10 @@ router.post('/correo/enviar', ruta(async (req, res) => {
   let anotado = true;
   if (incidenciaId) {
     try {
-      await mantis.anadirNota(incidenciaId, {
+      await incidencias.anadirNota(incidenciaId, {
         texto: 'Correo enviado a ' + c.para.join(', ') + '\nAsunto: ' + c.asunto + '\n\n' + c.mensaje,
-        minutos: 0
+        minutos: 0,
+        autor: req.usuario.usuario
       });
     } catch (e) {
       anotado = false;

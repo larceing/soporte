@@ -4,12 +4,9 @@
 // CREA DATOS (incidencias, sesiones, documentos numerados): se ejecuta solo en
 // desarrollo, con copia previa de la base de datos para restaurarla después.
 //
-//   BASE=http://localhost:8090 USUARIO=admin CLAVE=... \
-//   MANTIS=http://localhost:8080 MANTIS_TOKEN=... node tests/casuistica.js
+//   BASE=http://localhost:8090 USUARIO=admin CLAVE=... node tests/casuistica.js
 
 const BASE = process.env.BASE || 'http://localhost:8090';
-const MANTIS = (process.env.MANTIS || 'http://localhost:8080') + '/api/rest';
-const TOKEN = process.env.MANTIS_TOKEN || '';
 
 let cookie = '';
 let pasan = 0;
@@ -31,15 +28,6 @@ async function api(metodo, ruta, cuerpo, opciones) {
   let datos = null;
   try { datos = JSON.parse(texto); } catch (e) { datos = texto; }
   return { status: r.status, datos: datos, cabeceras: r.headers };
-}
-
-async function mantis(metodo, ruta, cuerpo) {
-  const r = await fetch(MANTIS + ruta, {
-    method: metodo,
-    headers: { Authorization: TOKEN, 'Content-Type': 'application/json' },
-    body: cuerpo ? JSON.stringify(cuerpo) : undefined
-  });
-  return r.status;
 }
 
 function comprobar(nombre, condicion, detalle) {
@@ -99,8 +87,7 @@ async function incidencias() {
   comprobar('tipo desconocido cae en Incidencia', largo.datos.tipo === 'Incidencia');
   comprobar('HTML, acentos, símbolos y emojis intactos', largo.datos.descripcion === '<script>alert(1)</script> ñ € 😀', largo.datos.descripcion);
 
-  // MantisBT no guarda emojis por sí mismo: el portal los codifica al enviar
-  // y los reconstruye al leer, en títulos, notas, nombres de fichero e historial.
+  // Emojis en títulos, notas, nombres de fichero e historial.
   const emo = await api('POST', '/api/incidencias', { titulo: 'Servidor caído 🔥🚒', descripcion: 'Urge 👨‍👩‍👧 &#x41; &amp; fin' });
   comprobar('emojis en el título y texto parecido a un código intacto',
     emo.datos.titulo === 'Servidor caído 🔥🚒' && emo.datos.descripcion === 'Urge 👨‍👩‍👧 &#x41; &amp; fin', [emo.datos.titulo, emo.datos.descripcion]);
@@ -219,18 +206,11 @@ async function cronometro() {
   comprobar('dos arranques simultáneos: uno 201 y otro 409', carrera.map(r => r.status).sort().join() === '201,409', carrera.map(r => [r.status, r.datos.error]));
   await api('POST', '/api/cronometro/descartar', {});
 
-  // La incidencia se resuelve o se borra por fuera con el cronómetro en marcha.
+  // No se puede resolver una incidencia con su cronómetro en marcha.
   const e = await nueva();
   await api('POST', '/api/cronometro/iniciar', { incidenciaId: e.id });
-  await mantis('PATCH', '/issues/' + e.id, { status: { name: 'resolved' }, resolution: { name: 'fixed' } });
-  espera('parar con la incidencia resuelta por fuera', await api('POST', '/api/cronometro/parar', { texto: 'x' }), 409);
-  comprobar('el cronómetro no queda bloqueado', (await api('GET', '/api/cronometro')).datos === null);
-
-  const f = await nueva();
-  await api('POST', '/api/cronometro/iniciar', { incidenciaId: f.id });
-  await mantis('DELETE', '/issues/' + f.id);
-  espera('parar con la incidencia borrada por fuera', await api('POST', '/api/cronometro/parar', { texto: 'x' }), 409);
-  comprobar('el cronómetro se libera', (await api('GET', '/api/cronometro')).datos === null);
+  espera('resolver con su cronómetro en marcha', await api('PATCH', '/api/incidencias/' + e.id, { estado: 'resolved' }), 409);
+  await api('POST', '/api/cronometro/descartar', {});
 }
 
 async function facturacion() {
