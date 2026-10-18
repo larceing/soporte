@@ -40,7 +40,7 @@ function dinero(valor, moneda) {
   return esc(partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + partes[1] + ' ' + (moneda || '€'));
 }
 
-function documentoHtml(doc) {
+function documentoHtml(doc, prefijo) {
   const m = MARCA;
   const datos = datosDe(doc);
   const emisor = datos.emisor || {};
@@ -148,7 +148,7 @@ function documentoHtml(doc) {
     // Cabecera de marca
     '<table style="width:100%;border-collapse:collapse;"><tr>' +
       '<td style="background:' + m.oscuro + ';padding:20px 0 20px 22px;width:50px;vertical-align:middle;">' +
-        '<img src="/img/monograma.svg" width="50" height="50" alt=""></td>' +
+        '<img src="' + (prefijo || '') + '/img/monograma.svg" width="50" height="50" alt=""></td>' +
       '<td style="background:' + m.oscuro + ';padding:20px 14px;vertical-align:middle;">' +
         '<div style="color:#FFFFFF;font-size:19px;font-weight:bold;letter-spacing:1px;">' + esc(m.nombre) + '</div>' +
         '<div style="color:' + m.acento + ';font-size:9px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;padding-top:3px;">' + esc(m.lema) + '</div>' +

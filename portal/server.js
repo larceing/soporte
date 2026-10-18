@@ -4,21 +4,36 @@ const db = require('./src/db');
 const auth = require('./src/auth');
 const api = require('./src/api');
 const resumen = require('./src/resumen');
+const { prefijoDe, conPrefijo } = require('./src/ruta');
 
 const PUBLICO = path.join(__dirname, 'public');
 const app = express();
 
 app.disable('x-powered-by');
-// En producción va detrás de Nginx Proxy Manager.
-app.set('trust proxy', 1);
+// Proxies por delante: Nginx Proxy Manager (1) o, en el servidor DEV/PRO, Nginx
+// Proxy Manager y la entrada del entorno (2). De ello depende que req.ip sea la
+// del navegador, que es lo que limita los intentos de entrada.
+app.set('trust proxy', Number(process.env.PORTAL_PROXIES) || 1);
 
 const SOLO_HTTPS = process.env.PORTAL_COOKIE_SECURE === '1';
+
+// Bajo una ruta (dev.<dominio>/soporte/) o en la raíz de su dominio: ver src/ruta.js.
+// Las redirecciones del servidor salen con el prefijo que toque.
+app.use((req, res, next) => {
+  req.prefijo = prefijoDe(req);
+  const redirigir = res.redirect.bind(res);
+  res.redirect = function(status, url) {
+    if (url === undefined) { url = status; status = 302; }
+    return redirigir(status, conPrefijo(req.prefijo, url));
+  };
+  next();
+});
 
 app.use((req, res, next) => {
   // En producción nada viaja sin cifrar, lo fuerce o no el proxy.
   if (SOLO_HTTPS) {
     if (req.headers['x-forwarded-proto'] === 'http') {
-      return res.redirect(308, 'https://' + req.headers.host + req.originalUrl);
+      return res.redirect(308, 'https://' + req.headers.host + req.prefijo + req.originalUrl);
     }
     res.set('Strict-Transport-Security', 'max-age=31536000');
   }
@@ -31,6 +46,18 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Las páginas usan direcciones relativas: con barra final (/login/) se perderían.
+app.use((req, res, next) => {
+  if (req.path.length > 1 && req.path.endsWith('/') && !req.path.startsWith('/api/') && req.path !== '/version/') {
+    const consulta = req.url.indexOf('?');
+    return res.redirect(308, req.path.replace(/\/+$/, '') + (consulta > -1 ? req.url.slice(consulta) : ''));
+  }
+  next();
+});
+
+// La versión que corre: la mira el servidor DEV/PRO (punto verde, «Pasar a PRO»).
+app.get('/version', (req, res) => res.json({ version: process.env.APP_VERSION || 'local' }));
 
 // Los adjuntos viajan en base64 dentro del JSON: solo esa ruta admite cuerpos grandes.
 app.use(/^\/api\/incidencias\/\d+\/adjuntos$/, express.json({ limit: '15mb' }));
@@ -45,9 +72,10 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// Lo único visible sin sesión: la pantalla de entrada y sus estilos.
-app.use('/css', express.static(path.join(PUBLICO, 'css')));
-app.use('/img', express.static(path.join(PUBLICO, 'img')));
+// Lo único visible sin sesión: la pantalla de entrada y sus estilos. Sin la
+// redirección de carpeta de express.static, que no sabe del prefijo de ruta.
+app.use('/css', express.static(path.join(PUBLICO, 'css'), { redirect: false }));
+app.use('/img', express.static(path.join(PUBLICO, 'img'), { redirect: false }));
 
 app.get('/login', async (req, res) => {
   if (await auth.usuarioDeSesion(req)) return res.redirect('/');
@@ -64,7 +92,7 @@ app.post('/api/logout', (req, res, next) => auth.cerrarSesion(req, res).catch(ne
 app.use('/api', (req, res, next) => auth.requiereSesion(req, res, next).catch(next), api);
 
 app.use('/js', (req, res, next) => auth.requiereSesionPagina(req, res, next).catch(next),
-  express.static(path.join(PUBLICO, 'js')));
+  express.static(path.join(PUBLICO, 'js'), { redirect: false }));
 
 app.get('/', (req, res, next) => auth.requiereSesionPagina(req, res, next).catch(next), (req, res) => {
   res.sendFile(path.join(PUBLICO, 'index.html'));

@@ -7,9 +7,10 @@ contraseña ni clave: solo dónde se guarda cada una.
 
 | Pieza | Dónde | Notas |
 |---|---|---|
-| Aplicación (portal) | https://soporte.luiscontacto03.com | Contenedor `incidencias-web`, Node.js |
-| Motor de incidencias | Solo red interna del servidor | Contenedor `incidencias-mantis`, MantisBT 2.28.4 sin modificar |
-| Base de datos | Solo red interna del servidor | Contenedor `incidencias-db`, MariaDB 11.4. Tablas `mantis_*` (MantisBT) y `ha_*` (portal) |
+| Código | https://github.com/larceing/soporte | Este repositorio (antes solo en el PC, en `DESARROLLO\gestor_incidecnias`). Imagen del portal: `ghcr.io/larceing/soporte` |
+| Aplicación (portal) | https://soporte.luiscontacto03.com | Contenedor `incidencias-web`, Node.js. En curso: pasa a ser la app `soporte` del servidor DEV/PRO (`soporte-dev`, `soporte-pro`), ver README |
+| Motor de incidencias | Solo redes internas del servidor | Contenedor `incidencias-mantis`, MantisBT 2.28.4 sin modificar |
+| Base de datos | Solo redes internas del servidor | Contenedor `incidencias-db`, MariaDB 11.4. Tablas `mantis_*` (MantisBT) y `ha_*` (portal) |
 | Servidor | `178.104.121.47`, Ubuntu 24.04, 2 CPU, 3,7 GB RAM | Carpeta `/opt/apps/incidencias`. Comparte máquina con citas, krearte y app_spsil |
 | Proxy y HTTPS | Nginx Proxy Manager en `/opt/apps/proxy` | Host `soporte.luiscontacto03.com` → `incidencias-web:80`, certificado Let's Encrypt |
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
@@ -70,6 +71,33 @@ Entrar a MantisBT en producción (no es público): con un túnel SSH,
 y abrir http://localhost:8081.
 
 ## Historial
+
+### 2026-10-18
+
+**Decisiones**
+
+- El gestor se integra en el servidor DEV/PRO (`larceing/servidor`) como app `soporte`, de tipo
+  `servidor`: una imagen del portal, que el servidor despliega, vigila y revierte desde Ajustes. Sin
+  script de despliegue ni claves de SSH. MantisBT y la base de datos siguen en su carpeta, una
+  instalación por entorno, en la red del proxy para que el portal llegue a ellos.
+- El login seguirá siendo el propio del portal hasta que se conecte Keycloak (todos los usuarios,
+  clientes incluidos, entrarán por Keycloak; pendiente de hacer).
+
+**Código**
+
+- Subido a GitHub tal cual estaba: https://github.com/larceing/soporte. Comprobado antes que el
+  historial no lleva claves ni datos de clientes.
+- Adaptación al servidor: `servidor.json`; página `/version/`; el portal funciona bajo una ruta
+  (`/soporte/`) o en la raíz de su dominio (`portal/src/ruta.js`, direcciones relativas en las
+  páginas); imagen con versión (`APP_VERSION`); workflow `imagen.yml` (comprobaciones + imagen a
+  GHCR); `docker-compose.server.yml` e `instalar-servidor.sh` con `NOMBRE` (instalación por
+  entorno) y `SIN_PORTAL`; `PORTAL_PROXIES` para contar bien los proxies.
+
+**Pendiente de este cambio** (por orden): aplicar el compose nuevo en `/opt/apps/incidencias`
+(recrea `incidencias-mantis` e `incidencias-db` para unirlos a `proxy_default`: unos segundos sin
+servicio); crear la instalación DEV en `/opt/apps/incidencias-dev`; dar de alta `larceing/soporte`
+en Ajustes y Poner en DEV con su `app.env`; Pasar a PRO contra la base de siempre y Poner en su
+dominio; parar `incidencias-web`; conectar Keycloak.
 
 ### 2026-10-12
 

@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex">
   <title>Entrar · Gestor de incidencias</title>
-  <link rel="icon" href="/img/monograma.svg">
+  <link rel="icon" href="img/monograma.svg">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/css/portal.css">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/portal.css">
 </head>
 
 <body>
   <main class="login">
     <div class="login-brand">
-      <img src="/img/monograma.svg" alt="">
+      <img src="img/monograma.svg" alt="">
       <div>
         <strong>Gestor de incidencias</strong>
         <span>Henry Arce · Business Applications &amp; Data</span>
@@ -76,7 +76,7 @@
       boton.disabled = true;
 
       try {
-        const respuesta = await fetch('/api/recuperar', {
+        const respuesta = await fetch('api/recuperar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ usuario: document.getElementById('recUsuario').value })
@@ -100,7 +100,7 @@
       boton.disabled = true;
 
       try {
-        const respuesta = await fetch('/api/login', {
+        const respuesta = await fetch('api/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -110,7 +110,7 @@
         });
 
         if (respuesta.ok) {
-          location.href = '/';
+          location.href = './';
           return;
         }
 

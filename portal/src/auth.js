@@ -51,12 +51,17 @@ function leerCookie(req) {
   return '';
 }
 
-function opcionesCookie() {
+// La cookie vale solo para la ruta del portal (/soporte/ en el servidor DEV/PRO).
+function rutaCookie(req) {
+  return (req.prefijo || '') + '/';
+}
+
+function opcionesCookie(req) {
   return {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.PORTAL_COOKIE_SECURE === '1',
-    path: '/',
+    path: rutaCookie(req),
     maxAge: DIAS_SESION * 24 * 60 * 60 * 1000
   };
 }
@@ -116,7 +121,7 @@ async function iniciarSesion(req, res) {
   );
   await consulta('DELETE FROM ha_sesion WHERE caduca_en < UTC_TIMESTAMP()');
 
-  res.cookie(COOKIE, token, opcionesCookie());
+  res.cookie(COOKIE, token, opcionesCookie(req));
   res.json({ usuario: filas[0].usuario });
 
   // El aviso no retrasa la entrada ni la impide si el correo falla.
@@ -215,7 +220,7 @@ async function cerrarSesion(req, res) {
   if (token) {
     await consulta('DELETE FROM ha_sesion WHERE token_hash = ?', [hashToken(token)]);
   }
-  res.clearCookie(COOKIE, { path: '/' });
+  res.clearCookie(COOKIE, { path: rutaCookie(req) });
   res.json({ ok: true });
 }
 

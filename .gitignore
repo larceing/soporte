@@ -7,3 +7,7 @@ migracion/
 # Ejemplos y notas sueltas con claves
 EXAMPLE_*.TXT
 *.local.txt
+# Los escribe instalar-servidor.sh en el servidor: claves y credenciales
+app.env.portal
+credenciales-iniciales.txt
+instalacion.log

@@ -1,21 +1,29 @@
-name: incidencias
+# MantisBT y la base de datos en el servidor, una instalación por entorno.
+#
+# El portal ya no sale de aquí: lo despliega el servidor DEV/PRO desde la imagen
+# ghcr.io/larceing/soporte (servidor.json) como contenedor soporte-<entorno>,
+# que solo está en la red del proxy. Por eso MantisBT y la base de datos están
+# también en esa red: el portal llega a ellos por su nombre.
+#
+# NOMBRE (en .env) distingue las instalaciones: incidencias (PRO, la de siempre)
+# e incidencias-dev (DEV). El servicio incidencias-web es el portal de antes: en
+# PRO sigue hasta que el nuevo esté en su dominio; en DEV no se arranca
+# (SIN_PORTAL=1 en instalar-servidor.sh). Sin puertos publicados.
+name: ${NOMBRE:-incidencias}
 
-# Producción. Mismo patrón que el resto de apps del servidor: sin puertos
-# publicados. Nginx Proxy Manager llega solo al portal (incidencias-web) por
-# proxy_default; MantisBT y la base de datos quedan en la red interna.
 services:
   incidencias-web:
-    image: incidencias-portal:latest
+    image: ${NOMBRE:-incidencias}-portal:latest
     build: ./portal
-    container_name: incidencias-web
+    container_name: ${NOMBRE:-incidencias}-web
     restart: unless-stopped
     environment:
       PORT: "80"
-      DB_HOST: incidencias-db
+      DB_HOST: ${NOMBRE:-incidencias}-db
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      MANTIS_URL: http://incidencias-mantis
+      MANTIS_URL: http://${NOMBRE:-incidencias}-mantis
       MANTIS_API_TOKEN: ${MANTIS_API_TOKEN:-}
       MANTIS_PROJECT: SPSIL
       PORTAL_ADMIN_USER: ${PORTAL_ADMIN_USER}
@@ -35,9 +43,9 @@ services:
       - proxy_default
 
   incidencias-mantis:
-    image: incidencias-mantis:latest
+    image: ${NOMBRE:-incidencias}-mantis:latest
     build: ./docker/web
-    container_name: incidencias-mantis
+    container_name: ${NOMBRE:-incidencias}-mantis
     restart: unless-stopped
     volumes:
       - ./config:/var/www/html/config
@@ -49,10 +57,11 @@ services:
         condition: service_healthy
     networks:
       - internal
+      - proxy_default
 
   incidencias-db:
     image: mariadb:11.4
-    container_name: incidencias-db
+    container_name: ${NOMBRE:-incidencias}-db
     restart: unless-stopped
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -64,6 +73,7 @@ services:
       - incidencias-db-data:/var/lib/mysql
     networks:
       - internal
+      - proxy_default
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s

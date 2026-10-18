@@ -3,10 +3,13 @@
 
 const CLAVE = process.env.RESEND_API_KEY || '';
 const REMITENTE = process.env.CORREO_REMITENTE || 'Henry Arce · Soporte <soporte@luiscontacto03.com>';
-const URL_PORTAL = (process.env.PORTAL_URL || '').replace(/\/+$/, '');
+// Dirección pública del portal, para los enlaces de los correos. En el servidor
+// DEV/PRO la pone el propio servidor (APP_URL_PUBLICA).
+const URL_PORTAL = (process.env.PORTAL_URL || process.env.APP_URL_PUBLICA || '').replace(/\/+$/, '');
 // Los programas de correo solo cargan imágenes de una dirección pública y no
-// admiten SVG: el logotipo es un PNG servido por el portal de producción.
-const LOGO = process.env.CORREO_LOGO_URL || 'https://soporte.luiscontacto03.com/img/monograma.png';
+// admiten SVG: el logotipo es un PNG servido por el propio portal.
+const LOGO = process.env.CORREO_LOGO_URL ||
+  (URL_PORTAL ? URL_PORTAL + '/img/monograma.png' : 'https://soporte.luiscontacto03.com/img/monograma.png');
 
 const PIE_AUTOMATICO = 'Gestor de incidencias · mensaje automático, no hace falta responder.';
 const PIE_PERSONAL = 'Henry Arce · Business Applications &amp; Data · Puedes responder a este correo.';

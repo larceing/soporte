@@ -14,7 +14,7 @@ const PESO_PRIORIDAD = { immediate: 5, urgent: 4, high: 3, normal: 2, low: 1, no
 async function api(metodo, ruta, cuerpo) {
   let respuesta;
   try {
-    respuesta = await fetch('/api' + ruta, {
+    respuesta = await fetch('api' + ruta, {
       method: metodo,
       headers: cuerpo ? { 'Content-Type': 'application/json' } : {},
       body: cuerpo ? JSON.stringify(cuerpo) : undefined
@@ -24,7 +24,7 @@ async function api(metodo, ruta, cuerpo) {
   }
 
   if (respuesta.status === 401) {
-    location.href = '/login';
+    location.href = 'login';
     throw new Error('Sesión caducada.');
   }
 
@@ -88,8 +88,8 @@ function coreMostrarVista(vista) {
 }
 
 async function coreSalir() {
-  await fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-  location.href = '/login';
+  await fetch('api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  location.href = 'login';
 }
 
 async function coreCargar() {
@@ -559,7 +559,7 @@ function tabFicheros(inc) {
     (inc.adjuntos.length
       ? inc.adjuntos.map(function(a) {
           return '<div class="note"><div class="note-head">' +
-            '<a class="fact-link" style="margin:0" href="/api/incidencias/' + inc.id + '/adjuntos/' + a.id + '">' + esc(a.nombre) + '</a>' +
+            '<a class="fact-link" style="margin:0" href="api/incidencias/' + inc.id + '/adjuntos/' + a.id + '">' + esc(a.nombre) + '</a>' +
             '<span>' + fmtBytes(a.bytes) + '</span><span>' + fmtFechaHora(a.fecha) + '</span>' +
           '</div></div>';
         }).join('')
