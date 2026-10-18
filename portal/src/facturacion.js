@@ -157,7 +157,8 @@ async function trabajos(filtros) {
   if (esDia(filtros.desde)) { donde.push('t.dia >= ?'); params.push(filtros.desde); }
   if (esDia(filtros.hasta)) { donde.push('t.dia <= ?'); params.push(filtros.hasta); }
   if (filtros.incidenciaId) { donde.push('t.incidencia_id = ?'); params.push(Number(filtros.incidenciaId)); }
-  if (filtros.cobro === 'PENDIENTE') donde.push("t.pago_id IS NULL AND t.estado = 'CERRADA'");
+  if (filtros.cobro === 'PENDIENTE') donde.push("t.pago_id IS NULL AND t.estado = 'CERRADA' AND t.sindri_en IS NULL");
+  if (filtros.cobro === 'SINDRI') donde.push('t.sindri_en IS NOT NULL');
   if (filtros.cobro === 'COBRADO') donde.push('t.pago_id IS NOT NULL');
   if (filtros.cobro === 'NO_COBRAR') donde.push("t.estado = 'NO_COBRAR'");
   if (filtros.q) {
@@ -168,7 +169,8 @@ async function trabajos(filtros) {
 
   const filas = await consulta(
     `SELECT t.id, t.codigo, t.incidencia_id AS incidenciaId, t.concepto, t.detalle, t.dia, t.minutos,
-            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id AS pagoId, c.nombre AS cliente
+            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id AS pagoId, c.nombre AS cliente,
+            t.sindri_en AS sindriEn, t.sindri_estado AS sindriEstado, t.sindri_pedido AS sindriPedido
        FROM ha_trabajo t JOIN ha_cliente c ON c.id = t.cliente_id
       ${donde.length ? 'WHERE ' + donde.join(' AND ') : ''}
       ORDER BY t.dia DESC, t.id DESC`,
@@ -184,17 +186,26 @@ async function trabajos(filtros) {
 function situacionDe(trabajo, doc) {
   if (trabajo.pagoId) return { clave: 'COBRADO', texto: 'Cobrado' + (doc ? ' · ' + doc.codigo : '') };
   if (trabajo.estado === 'NO_COBRAR') return { clave: 'NO_COBRAR', texto: 'No se cobra' };
+  if (trabajo.sindriEn) return { clave: 'SINDRI', texto: textoSindri(trabajo) };
   if (doc && doc.tipo === 'PROFORMA') return { clave: 'PROFORMA', texto: 'En proforma ' + doc.codigo };
   if (doc) return { clave: 'FACTURADO', texto: 'Facturado ' + doc.codigo };
   return { clave: 'PENDIENTE', texto: 'Pendiente' };
 }
 
+// Lo mandado a Sindri se factura allí: aquí solo se ve en qué punto está.
+function textoSindri(t) {
+  if (t.sindriEstado === 'en_pedido') return 'En Sindri · pedido ' + (t.sindriPedido || '');
+  if (t.sindriEstado === 'descartado') return 'Descartado en Sindri';
+  return 'En Sindri · por facturar';
+}
+
 async function trabajoEstado(id, estado) {
   if (['CERRADA', 'NO_COBRAR'].indexOf(estado) === -1) throw new ErrorUsuario('Estado no válido.');
 
-  const [trabajo] = await consulta('SELECT id, pago_id FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
+  const [trabajo] = await consulta('SELECT id, pago_id, sindri_en FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
   if (!trabajo) throw new ErrorUsuario('Trabajo no encontrado.', 404);
   if (trabajo.pago_id) throw new ErrorUsuario('No se puede cambiar un trabajo ya cobrado.', 409);
+  if (trabajo.sindri_en) throw new ErrorUsuario('Está mandado a Sindri: retíralo antes desde Sesiones.', 409);
 
   const doc = (await trabajosOcupados()).get(trabajo.id);
   if (doc) throw new ErrorUsuario('No se puede cambiar: el trabajo está en ' + doc.codigo + '.', 409);
@@ -218,7 +229,7 @@ async function pendiente(datos) {
   const filas = await consulta(
     `SELECT id, codigo, incidencia_id AS incidenciaId, concepto, detalle, dia, minutos, horas, tarifa, importe, tipo
        FROM ha_trabajo
-      WHERE cliente_id = ? AND estado = 'CERRADA' AND pago_id IS NULL AND dia BETWEEN ? AND ?
+      WHERE cliente_id = ? AND estado = 'CERRADA' AND pago_id IS NULL AND sindri_en IS NULL AND dia BETWEEN ? AND ?
       ORDER BY dia, id`,
     [cliente.id, datos.desde, datos.hasta]
   );
@@ -668,7 +679,7 @@ async function facturaCobrar(facturaId) {
 module.exports = {
   TITULOS, datosDe,
   config, configGuardar,
-  clientes, clienteGuardar,
+  clientes, clientePorId, clienteGuardar, trabajosOcupados,
   trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado,
   pendiente, cobrarPeriodo, pagos,
   documentos, documento, documentoDetalle, documentoPdf, resumenCrear, proformaCrear, proformaAnular, facturaEmitir, facturaRectificar, facturaCobrar

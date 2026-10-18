@@ -23,7 +23,7 @@ function hoyIso() {
 }
 
 function badgeSituacion(situacion) {
-  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral' }[situacion.clave];
+  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', SINDRI: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral' }[situacion.clave];
   return '<span class="badge ' + (clase || 'badge-neutral') + '">' + esc(situacion.texto) + '</span>';
 }
 
@@ -53,6 +53,7 @@ async function cobrosPreparar() {
     desde.value = pendientes.length ? pendientes[pendientes.length - 1].dia : hoyIso();
   }
 
+  await sindriCargar();
   await cobroCalcular();
 }
 
@@ -99,6 +100,8 @@ async function cobroCalcular() {
         '<button type="button" class="btn btn-secondary" onclick="accionAbrir(\'resumen\')">Resumen de servicios</button>' +
         (libres.length && libres.length === r.lineas.length
           ? '<button type="button" class="btn btn-secondary" onclick="accionAbrir(\'cobrarPeriodo\')">Marcar todo como cobrado</button>' : '') +
+        (libres.length && sindri.activo && !sindri.error
+          ? '<button type="button" class="btn btn-secondary" onclick="sindriEnviar()">Mandar a Sindri</button>' : '') +
       '</div>' +
       (r.registros
         ? '<div class="cobro-tabla-wrap"><table class="cobro-tabla">' +
@@ -143,6 +146,9 @@ async function sesionesCargar() {
     if (sesFiltros[clave]) partes.push(clave + '=' + encodeURIComponent(sesFiltros[clave]));
   });
 
+  await sindriCargar();
+  // Antes de enseñar lo mandado a Sindri, se pregunta allí en qué punto está.
+  if (sindri.activo && !sindri.error && sesFiltros.cobro === 'SINDRI') await api('POST', '/sindri/actualizar', {}).catch(function() {});
   sesionesTodas = await api('GET', '/trabajos' + (partes.length ? '?' + partes.join('&') : ''));
   sesionesPintar();
 }
@@ -184,6 +190,9 @@ function sesionesPintar() {
     const acciones = [];
     if (t.incidenciaId) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="detalleTab=\'sesiones\'; detalleAbrir(' + t.incidenciaId + ')">Ver incidencia</button>');
+    }
+    if (t.situacion.clave === 'SINDRI' && t.sindriEstado === 'pendiente') {
+      acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sindriRetirar(' + t.id + ')">Retirar de Sindri</button>');
     }
     if (libre) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sesionEstado(' + t.id + ', \'' +
@@ -547,6 +556,98 @@ async function accionConfirmar() {
   }
 }
 
+/* Sindri: facturación central. Solo aparece si el servidor la tiene configurada. */
+
+let sindri = { activo: false };
+
+async function sindriCargar() {
+  try {
+    sindri = await api('GET', '/sindri');
+  } catch (err) {
+    sindri = { activo: false };
+  }
+  document.querySelectorAll('[data-sindri]').forEach(function(el) { el.classList.toggle('hidden', !sindri.activo); });
+  return sindri;
+}
+
+async function sindriEnviar() {
+  const p = cobroPeriodo();
+  if (!(await coreConfirmar('Mandar a Sindri', 'Se mandará a Sindri lo pendiente de ' + fmtDia(p.desde) + ' a ' + fmtDia(p.hasta) +
+    ' que no esté en una proforma o factura. Desde ese momento se factura en Sindri.', 'Mandar'))) return;
+  try {
+    const r = await api('POST', '/sindri/enviar', { desde: p.desde, hasta: p.hasta });
+    const partes = [r.enviados + ' mandados a Sindri.'];
+    if (r.sinCliente) partes.push(r.sinCliente + ' sin mandar: su cliente no está ligado con Sindri (Ajustes).');
+    if (r.errores.length) partes.push(r.errores.length + ' con error: ' + r.errores.map(function(e) { return e.codigo + ' (' + e.error + ')'; }).join(', '));
+    await cobroCalcular();
+    coreMensaje('mensajeCobro', partes.join(' '), r.errores.length || r.sinCliente ? 'error' : 'ok');
+  } catch (err) {
+    coreMensaje('mensajeCobro', err.message, 'error');
+  }
+}
+
+async function sindriRetirar(id) {
+  try {
+    await api('POST', '/trabajos/' + id + '/retirar-sindri', {});
+    await sesionesCargar();
+  } catch (err) {
+    coreError(err);
+  }
+}
+
+async function sindriAjustes(cliente) {
+  const panel = document.getElementById('sindriPanel');
+  panel.classList.toggle('hidden', !sindri.activo);
+  if (!sindri.activo) return;
+  const estado = document.getElementById('sindriEstado');
+  const ligar = document.getElementById('sindriLigar');
+  if (sindri.error) {
+    estado.textContent = sindri.error;
+    ligar.classList.add('hidden');
+    return;
+  }
+  const e = sindri.empresa || {};
+  estado.textContent = 'Conectado a ' + (e.trade_name || e.name || 'Sindri') + (e.code ? ' (' + e.code + ')' : '') +
+    '. Las horas van con el producto ' + sindri.producto +
+    (sindri.productoGasto !== sindri.producto ? ' y los gastos con ' + sindri.productoGasto : '') + '.';
+  try {
+    const lista = await api('GET', '/sindri/clientes');
+    const sel = document.getElementById('sindriCliente');
+    sel.innerHTML = '<option value="">Sin ligar</option>' + lista.map(function(c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === cliente.sindri_id ? ' selected' : '') + '>' +
+        esc((c.trade_name || c.name) + (c.tax_id ? ' · ' + c.tax_id : '')) + '</option>';
+    }).join('');
+    ligar.classList.remove('hidden');
+  } catch (err) {
+    estado.textContent = err.message;
+    ligar.classList.add('hidden');
+  }
+}
+
+async function sindriLigar() {
+  try {
+    await api('POST', '/sindri/vincular', { clienteId: document.getElementById('cli_id').value, sindriId: document.getElementById('sindriCliente').value });
+    await ajustesCargar();
+    coreMensaje('mensajeAjustes', 'Cliente ligado con Sindri.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeAjustes', err.message, 'error');
+  }
+  window.scrollTo(0, 0);
+}
+
+async function sindriImportar() {
+  const id = document.getElementById('sindriCliente').value;
+  if (!id) return coreMensaje('mensajeAjustes', 'Elige el cliente de Sindri.', 'error');
+  try {
+    await api('POST', '/sindri/importar', { sindriId: id });
+    await ajustesCargar();
+    coreMensaje('mensajeAjustes', 'Cliente traído de Sindri.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeAjustes', err.message, 'error');
+  }
+  window.scrollTo(0, 0);
+}
+
 /* Ajustes */
 
 async function ajustesCargar() {
@@ -573,6 +674,9 @@ async function ajustesCargar() {
     .forEach(function(campo) {
       document.getElementById('cli_' + campo).value = cliente[campo] == null ? '' : cliente[campo];
     });
+
+  await sindriCargar();
+  await sindriAjustes(cliente);
 }
 
 async function ajustesGuardar() {

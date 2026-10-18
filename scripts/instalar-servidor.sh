@@ -58,6 +58,7 @@ PORTAL_COOKIE_SECURE=1
 PORTAL_PROXIES=2
 # Correo: lo envía la app Mail. MAIL_URL=http://mail-<entorno>:3000 y
 # MAIL_LLAVE (la llave de Soporte, creada en Mail → Llaves).
+# Sindri (opcional): SINDRI_URL y SINDRI_LLAVE (Sindri → Empresa → Integraciones).
 EOF
 	)
 	echo "Variables para el portal del servidor DEV/PRO en $(pwd)/app.env.portal"

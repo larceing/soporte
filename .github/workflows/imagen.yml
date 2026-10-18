@@ -29,8 +29,8 @@ jobs:
           for f in portal/server.js portal/src/*.js portal/scripts/*.js portal/public/js/*.js; do
             node --check "$f"
           done
-      - name: prefijo de ruta y Keycloak
-        run: node portal/tests/ruta.js && node portal/tests/sso.js
+      - name: prefijo de ruta, Keycloak y Sindri
+        run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/sindri.js
       - name: la imagen genera el PDF de un documento (Chromium dentro)
         run: |
           docker build -t portal-prueba portal

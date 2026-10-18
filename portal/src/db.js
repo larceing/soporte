@@ -189,7 +189,13 @@ const TABLAS = [
      antes TEXT NOT NULL,
      despues TEXT NOT NULL,
      INDEX idx_ha_cambio_incidencia (incidencia_id)
-   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // Sindri (facturación central): el cliente de Sindri al que corresponde cada
+  // cliente y, por trabajo, cuándo se mandó a facturar allí y en qué punto está.
+  `ALTER TABLE ha_cliente ADD COLUMN IF NOT EXISTS sindri_id VARCHAR(64) NOT NULL DEFAULT ''`,
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_en DATETIME NULL`,
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_estado VARCHAR(16) NOT NULL DEFAULT ''`,
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_pedido VARCHAR(40) NOT NULL DEFAULT ''`
 ];
 
 async function migrar() {
