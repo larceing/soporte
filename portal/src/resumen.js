@@ -3,7 +3,7 @@
 // (hora de España) y también se puede pedir a mano desde Ajustes.
 
 const { consulta } = require('./db');
-const mantis = require('./mantis');
+const almacen = require('./incidencias');
 const fact = require('./facturacion');
 const correo = require('./correo');
 const { diaLocal, diaCorto, redondear } = require('./util');
@@ -35,10 +35,10 @@ async function datos() {
   const mes = mesAnterior(hoy);
   const cfg = await fact.config();
 
-  // Si el motor de incidencias no responde, el resumen sale igual con los cobros.
+  // Si las incidencias no se pueden leer, el resumen sale igual con los cobros.
   let incidencias = null;
   try {
-    incidencias = await mantis.listar();
+    incidencias = await almacen.listar();
   } catch (e) {
     incidencias = null;
   }

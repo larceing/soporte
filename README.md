@@ -1,14 +1,36 @@
 # Gestor de incidencias
 
-Sistema propio de incidencias, documentación y horas. Tiene dos piezas:
+Sistema propio de incidencias, documentación y horas: el **portal** (`portal/`), con el aspecto
+del Gestor de peticiones. Node.js + Express, sin framework en el navegador, y MariaDB.
 
-- **Portal** (`portal/`): la aplicación de trabajo, con el aspecto del Gestor de peticiones.
-  Node.js + Express, sin framework en el navegador. Entrada con usuario y cookie de sesión.
-- **MantisBT 2.28.4** (GPL v2 o posterior), sin modificar: el motor de incidencias. El portal
-  lo usa solo por su API REST (`portal/src/mantis.js`) y no copia su código.
+Todo se guarda en tablas `ha_*`: incidencias, notas, adjuntos e historial
+(`portal/src/incidencias.js`), además de usuarios, cronómetro y cobros. Hasta ahora las incidencias
+vivían en **MantisBT 2.28.4**, que el portal usaba solo como almacén por su API REST. Ver
+[Adiós a MantisBT](#adiós-a-mantisbt): lo que queda de MantisBT en este repositorio se quitará
+cuando DEV y PRO hayan copiado sus incidencias.
 
-Los datos propios del portal (usuarios, sesiones, cronómetro) van en tablas `ha_*` de la misma
-base de datos; las tablas `mantis_*` solo las toca MantisBT.
+## Adiós a MantisBT
+
+Al arrancar, el portal copia una sola vez las incidencias de MantisBT a sus tablas
+(`portal/src/migrar-mantis.js`): las lee por la API, con la misma traducción que mostraba hasta
+ahora, y las guarda todas en una transacción, con sus números de incidencia, nota y adjunto
+(las sesiones de trabajo y los correos apuntan a ellos). Deja la marca
+`incidencias_copiadas_de_mantis` en `ha_config` y no lo repite. Las tablas `mantis_*` no se tocan:
+quedan como respaldo. El historial de «Resolución» de MantisBT no se copia: lo dice el estado.
+
+Para la copia hacen falta `MANTIS_URL` y `MANTIS_API_TOKEN` en el `app.env`, que ya están. Si falla,
+el portal arranca igual (Cobros, Correo…) y la pantalla de incidencias dice el motivo; se arregla y
+se vuelve a poner la versión. En una base de datos sin MantisBT no hay nada que copiar.
+
+Antes de poner esta versión en un entorno, copia de la base de datos:
+
+```
+docker exec incidencias-db sh -c 'mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" mantisbt' > antes-sin-mantis.sql
+```
+
+Volver a la versión anterior del portal sigue funcionando (MantisBT sigue ahí), pero lo creado
+mientras tanto en el portal nuevo no estaría en MantisBT. Las notas nuevas se firman con el usuario
+que las escribe, no con «administrator».
 
 ## Entorno de desarrollo
 
@@ -177,7 +199,7 @@ operaciones simultáneas. Crea datos, así que solo se ejecuta en desarrollo, co
 
 ```
 docker compose exec -T db sh -c "mariadb-dump -uroot -p$MARIADB_ROOT_PASSWORD mantisbt" > backups/antes-pruebas.sql
-BASE=http://localhost:8090 USUARIO=admin CLAVE=... MANTIS=http://localhost:8080 MANTIS_TOKEN=... node portal/tests/casuistica.js
+BASE=http://localhost:8090 USUARIO=admin CLAVE=... node portal/tests/casuistica.js
 docker compose exec -T db sh -c "mariadb -uroot -p$MARIADB_ROOT_PASSWORD mantisbt" < backups/antes-pruebas.sql
 ```
 

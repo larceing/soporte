@@ -1,8 +1,8 @@
 const mysql = require('mysql2/promise');
 
-// El portal guarda lo suyo en la misma base de datos que MantisBT, en tablas
-// con prefijo ha_. Las tablas mantis_* no se tocan nunca desde aquí: las
-// incidencias se leen y escriben solo por la API de MantisBT.
+// El portal guarda todo en tablas con prefijo ha_, en la base de datos que
+// antes compartía con MantisBT. Las tablas mantis_* no se tocan nunca desde
+// aquí: solo se leen por la API de MantisBT para copiarlas (migrar-mantis.js).
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'db',
   user: process.env.DB_USER,
@@ -55,9 +55,8 @@ const TABLAS = [
      notas TEXT NOT NULL,
      activo TINYINT(1) NOT NULL DEFAULT 1
    )`,
-  // Lo facturable: una fila por sesión de trabajo (ligada a una nota con tiempo
-  // de MantisBT) o por gasto suelto. Guarda el precio del momento, que MantisBT
-  // no conoce.
+  // Lo facturable: una fila por sesión de trabajo (ligada a una nota con
+  // tiempo) o por gasto suelto. Guarda el precio del momento.
   `CREATE TABLE IF NOT EXISTS ha_trabajo (
      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
      codigo VARCHAR(40) NOT NULL UNIQUE,
@@ -142,7 +141,52 @@ const TABLAS = [
      documento_id INT UNSIGNED PRIMARY KEY,
      nombre VARCHAR(255) NOT NULL,
      contenido LONGBLOB NOT NULL
-   )`
+   )`,
+  // Las incidencias, antes en MantisBT. Los números de incidencia, nota y
+  // adjunto se conservan al copiarlas, porque ha_trabajo y ha_correo los usan.
+  `CREATE TABLE IF NOT EXISTS ha_incidencia (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     codigo VARCHAR(40) NOT NULL,
+     tipo VARCHAR(40) NOT NULL,
+     titulo VARCHAR(255) NOT NULL,
+     descripcion MEDIUMTEXT NOT NULL,
+     estado VARCHAR(16) NOT NULL,
+     prioridad VARCHAR(16) NOT NULL,
+     limite DATE NULL,
+     autor VARCHAR(100) NOT NULL DEFAULT '',
+     creada DATETIME NOT NULL,
+     actualizada DATETIME NOT NULL,
+     INDEX idx_ha_incidencia_actualizada (actualizada)
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS ha_nota (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     incidencia_id INT UNSIGNED NOT NULL,
+     texto MEDIUMTEXT NOT NULL,
+     minutos INT UNSIGNED NOT NULL DEFAULT 0,
+     autor VARCHAR(100) NOT NULL DEFAULT '',
+     fecha DATETIME NOT NULL,
+     INDEX idx_ha_nota_incidencia (incidencia_id)
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS ha_adjunto (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     incidencia_id INT UNSIGNED NOT NULL,
+     nombre VARCHAR(255) NOT NULL,
+     bytes INT UNSIGNED NOT NULL,
+     contenido LONGBLOB NOT NULL,
+     autor VARCHAR(100) NOT NULL DEFAULT '',
+     fecha DATETIME NOT NULL,
+     INDEX idx_ha_adjunto_incidencia (incidencia_id)
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // Historial: alta y cada campo cambiado, ya con el texto que se muestra.
+  `CREATE TABLE IF NOT EXISTS ha_cambio (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     incidencia_id INT UNSIGNED NOT NULL,
+     fecha DATETIME NOT NULL,
+     campo VARCHAR(40) NOT NULL,
+     antes TEXT NOT NULL,
+     despues TEXT NOT NULL,
+     INDEX idx_ha_cambio_incidencia (incidencia_id)
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
 async function migrar() {

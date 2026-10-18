@@ -121,6 +121,13 @@ dominio; parar `incidencias-web`; conectar Keycloak.
 **Pendiente**: las notas en MantisBT siguen firmadas por
 `administrator` (el usuario con el que el portal habla con MantisBT).
 
+### 2026-10-18 (tarde)
+
+- Las incidencias salen de MantisBT: el portal las guarda en sus tablas (`ha_incidencia`,
+  `ha_nota`, `ha_adjunto`, `ha_cambio`) y las copia de MantisBT una sola vez al arrancar,
+  conservando los números. MantisBT solo se usaba como almacén por su API. Sus contenedores y su
+  código se quitarán cuando DEV y PRO hayan copiado.
+
 ### 2026-10-18 (mediodía)
 
 - Nueva app **Mail** (`larceing/mail`): el correo de todas las apps con la marca, por bloques,

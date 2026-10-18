@@ -131,6 +131,7 @@ async function arrancar() {
     }
   }
 
+  await require('./src/migrar-mantis').alArrancar();
   await auth.asegurarAdmin();
   await auth.asegurarEmailAdmin();
 
