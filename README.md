@@ -200,11 +200,20 @@ Los PDF que el gestor antiguo guardó en Drive se importan con
 
 ## Llevar los datos a Sindri
 
-En **Ajustes**, «Descargar para Sindri» da un `.json` con el emisor, los clientes (con su contacto)
-y la tarifa general como producto «HORA». En Sindri se importa en **Empresa → Llevar y traer
-datos**: primero enseña qué haría y no guarda nada hasta pulsar «Importar». No borra nada y, si se
-repite, actualiza los clientes por NIF en vez de duplicarlos. Las incidencias, horas y documentos
-siguen en el gestor.
+En **Ajustes**, «Descargar para Sindri» da un `.json` con:
+
+- el emisor y los clientes (con su contacto y su **tarifa por hora**, que en Sindri queda como tarifa
+  propia del cliente; el descuento se pone en su ficha de Sindri);
+- los **servicios como artículos**: `SOP-INC` (incidencias), `SOP-PET` (peticiones), `HORA` (horas
+  sin incidencia), todos por horas con la tarifa general, y `SOP-CARGO` para los cobros sueltos;
+- lo **pendiente de cobrar** (cerrado, sin cobro y fuera de proformas y facturas): cada trabajo con
+  sus horas como cantidad y la tarifa del momento como precio. En Sindri queda en **Pedidos → Por
+  facturar**. Lo cobrado, lo facturado y lo marcado «No se cobra» no viaja.
+
+En Sindri se importa en **Empresa → Llevar y traer datos**: primero enseña qué haría, con la tabla de
+lo que queda por facturar, y no guarda nada hasta pulsar «Importar». No borra nada y, si se repite,
+actualiza en vez de duplicar (clientes por NIF, artículos por referencia, trabajos por su código).
+Las incidencias y los documentos siguen en el gestor.
 
 ## Pruebas de casuística
 

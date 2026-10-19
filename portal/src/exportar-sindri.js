@@ -1,43 +1,90 @@
 // Los datos del gestor en el formato que importa Sindri («sindri-datos», versión 1): el emisor
-// como empresa, los clientes con su contacto y la hora de trabajo como producto (servicio) con la
-// tarifa general. En Sindri se importa en Empresa → Llevar y traer datos; no borra nada allí.
+// como empresa, los clientes con su contacto y su tarifa, los servicios como artículos y el
+// trabajo pendiente de cobrar como «por facturar» (las horas son la cantidad). En Sindri se
+// importa en Empresa → Llevar y traer datos; no borra nada allí.
 
 const IVA_SINDRI = ['0', '4', '10', '21'];
+
+// Un artículo por tipo de trabajo. Las horas de una incidencia o petición van a su servicio; las
+// que no cuelgan de ninguna, a la hora de soporte; los cobros sueltos, a «Otros cargos».
+const SERVICIOS = {
+  INCIDENCIA: { sku: 'SOP-INC', name: 'Soporte: resolución de incidencias' },
+  PETICION: { sku: 'SOP-PET', name: 'Soporte: peticiones y desarrollos' },
+  HORA: { sku: 'HORA', name: 'Hora de soporte' }
+};
+const CARGO = { sku: 'SOP-CARGO', name: 'Otros cargos' };
 
 function numero(v) {
   const n = Number(String(v ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 }
 
-function datosParaSindri(cfg, clientes) {
+const texto = n => String(Math.round(n * 10000) / 10000);
+
+function servicioDe(tipoIncidencia) {
+  if (!tipoIncidencia) return SERVICIOS.HORA;
+  return /^pet/i.test(tipoIncidencia) ? SERVICIOS.PETICION : SERVICIOS.INCIDENCIA;
+}
+
+const dia = d => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
+
+// Pendiente de cobrar: cerrado, sin cobro y fuera de cualquier proforma o factura.
+const pendiente = t => t.estado === 'CERRADA' && !t.pago_id && !t.ocupado;
+
+function datosParaSindri(cfg, clientes, trabajos = []) {
   const irpf = numero(cfg.IRPF);
   const iva = IVA_SINDRI.includes(String(numero(cfg.IVA))) ? String(numero(cfg.IVA)) : '21';
-  const tarifa = numero(cfg.TARIFA_HORA);
+  const general = numero(cfg.TARIFA_HORA);
+  const horas = Object.values(SERVICIOS);
+  const nombreDe = c => (c.razon_social || c.nombre).trim();
+  const porId = new Map(clientes.map(c => [Number(c.id), c]));
+
   const datos = {
     formato: 'sindri-datos',
     version: 1,
     origen: 'Gestor de incidencias',
+    origen_app: 'incidencias',
     clientes: clientes.map(c => {
+      const propia = numero(c.tarifa_hora);
       const cliente = {
         kind: 'customer',
-        name: (c.razon_social || c.nombre).trim(),
+        name: nombreDe(c),
         trade_name: c.razon_social && c.razon_social !== c.nombre ? c.nombre : null,
         tax_id: c.nif || null,
         email: c.email || null,
         phone: c.telefono || null,
         address: c.direccion || null,
-        notes: [c.notas, c.tarifa_hora != null ? `Tarifa por hora en el gestor: ${c.tarifa_hora} ${cfg.MONEDA || '€'}` : '']
-          .filter(Boolean).join('\n') || null,
+        notes: c.notas || null,
         archived: !c.activo,
-        contactos: c.contacto ? [{ name: c.contacto, email: c.email || null, phone: c.telefono || null }] : []
+        contactos: c.contacto ? [{ name: c.contacto, email: c.email || null, phone: c.telefono || null }] : [],
+        // Su tarifa por hora en cada servicio por horas. El descuento se pone en su ficha de Sindri.
+        tarifas: propia > 0 ? horas.map(s => ({ sku: s.sku, precio: texto(propia) })) : []
       };
       if (irpf) cliente.withholding_rate = String(irpf);
       return cliente;
     }),
-    productos: tarifa != null ? [{
-      sku: 'HORA', name: 'Hora de soporte', kind: 'service', uom: 'h', sale_price: String(tarifa), vat_rate: iva
-    }] : [],
-    modelos: []
+    productos: [
+      ...horas.map(s => ({ sku: s.sku, name: s.name, kind: 'service', uom: 'h', vat_rate: iva, ...(general != null ? { sale_price: texto(general) } : {}) })),
+      { sku: CARGO.sku, name: CARGO.name, kind: 'service', uom: 'ud', vat_rate: iva }
+    ],
+    modelos: [],
+    por_facturar: trabajos.filter(pendiente).flatMap(t => {
+      const c = porId.get(Number(t.cliente_id));
+      if (!c) return [];
+      const deTiempo = t.tipo === 'TIEMPO';
+      const cantidad = deTiempo ? numero(t.horas) : 1;
+      if (!(cantidad > 0)) return [];
+      const inc = t.incidencia_codigo ? `${t.incidencia_codigo} ${t.incidencia_titulo || ''}`.trim() : '';
+      return [{
+        ref: t.codigo,
+        cliente: { tax_id: c.nif || null, name: nombreDe(c) },
+        sku: deTiempo ? servicioDe(t.incidencia_tipo).sku : CARGO.sku,
+        fecha: dia(t.dia),
+        cantidad: texto(cantidad),
+        precio: texto(numero(deTiempo ? t.tarifa : t.importe) || 0),
+        descripcion: [inc, t.concepto].filter(Boolean).join(' · ').slice(0, 500) || 'Trabajo'
+      }];
+    })
   };
   if (cfg.EMISOR_NOMBRE && cfg.EMISOR_NIF) {
     datos.empresa = { name: cfg.EMISOR_NOMBRE, tax_id: cfg.EMISOR_NIF, address: cfg.EMISOR_DIRECCION || null };
@@ -45,4 +92,4 @@ function datosParaSindri(cfg, clientes) {
   return datos;
 }
 
-module.exports = { datosParaSindri };
+module.exports = { datosParaSindri, SERVICIOS, CARGO };
