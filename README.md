@@ -1,4 +1,4 @@
-# Gestor de incidencias
+# Valkyria (gestor de incidencias)
 
 Sistema propio de incidencias, documentación y horas: el **portal** (`portal/`), con el aspecto
 del Gestor de peticiones. Node.js + Express, sin framework en el navegador, y MariaDB.

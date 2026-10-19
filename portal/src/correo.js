@@ -10,7 +10,7 @@ const LLAVE = () => process.env.MAIL_LLAVE || '';
 // DEV/PRO la pone el propio servidor (APP_URL_PUBLICA).
 const URL_PORTAL = (process.env.PORTAL_URL || process.env.APP_URL_PUBLICA || '').replace(/\/+$/, '');
 
-const PIE_AUTOMATICO = 'Gestor de incidencias · mensaje automático, no hace falta responder.';
+const PIE_AUTOMATICO = 'Valkyria · mensaje automático, no hace falta responder.';
 const PIE_PERSONAL = 'Henry Arce · Business Applications & Data · Puedes responder a este correo.';
 
 function activo() {
@@ -102,7 +102,7 @@ function avisoAcceso(para, usuario, datos) {
   const cuando = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'full', timeStyle: 'short' }).format(new Date());
   return enviar({
     para,
-    asunto: 'Nuevo inicio de sesión en el Gestor de incidencias',
+    asunto: 'Nuevo inicio de sesión en Valkyria',
     bloques: [
       { tipo: 'titulo', texto: 'Nuevo inicio de sesión' },
       { tipo: 'texto', texto: 'Se ha iniciado sesión como ' + negrita(usuario) + '.' },
@@ -129,10 +129,10 @@ function claveCambiada(para, usuario) {
 function prueba(para) {
   return enviar({
     para,
-    asunto: 'Prueba de correo del Gestor de incidencias',
+    asunto: 'Prueba de correo de Valkyria',
     bloques: [
       { tipo: 'titulo', texto: 'El correo funciona' },
-      { tipo: 'texto', texto: 'Este es un mensaje de prueba enviado desde el Gestor de incidencias.' }
+      { tipo: 'texto', texto: 'Este es un mensaje de prueba enviado desde Valkyria.' }
     ]
   });
 }
