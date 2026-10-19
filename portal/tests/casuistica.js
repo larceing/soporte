@@ -1,7 +1,7 @@
 // Recorre los grafos de estados del portal y comprueba cada transición,
 // permitida o prohibida, contra una instancia en marcha.
 //
-// CREA DATOS (incidencias, sesiones, documentos numerados): se ejecuta solo en
+// CREA DATOS (incidencias y sesiones): se ejecuta solo en
 // desarrollo, con copia previa de la base de datos para restaurarla después.
 //
 //   BASE=http://localhost:8090 USUARIO=admin CLAVE=... node tests/casuistica.js
@@ -213,11 +213,9 @@ async function cronometro() {
   await api('POST', '/api/cronometro/descartar', {});
 }
 
-async function facturacion() {
-  const DESDE = '2030-01-01';
-  const HASTA = '2030-12-31';
-  const periodo = { desde: DESDE, hasta: HASTA };
+async function horas() {
   const gasto = (importe, dia) => api('POST', '/api/trabajos/gasto', { concepto: 'Gasto prueba', importe: importe, dia: dia || '2030-06-15' });
+  const pendientes = async () => (await api('GET', '/api/trabajos?cobro=PENDIENTE&desde=2030-01-01&hasta=2030-12-31')).datos;
 
   espera('gasto sin concepto', await api('POST', '/api/trabajos/gasto', { importe: 5 }), 400);
   espera('gasto con importe cero', await gasto(0), 400);
@@ -226,124 +224,34 @@ async function facturacion() {
   espera('gasto con coma decimal', await gasto('10,50'), 201);
   espera('segundo gasto', await gasto(20), 201);
 
-  espera('pendiente sin fechas', await api('GET', '/api/cobros/pendiente'), 400);
-  espera('pendiente con periodo invertido', await api('GET', '/api/cobros/pendiente?desde=2030-12-31&hasta=2030-01-01'), 400);
-  espera('pendiente con fecha mala', await api('GET', '/api/cobros/pendiente?desde=ayer&hasta=hoy'), 400);
-  const vacio = await api('GET', '/api/cobros/pendiente?desde=2031-01-01&hasta=2031-12-31');
-  comprobar('periodo sin trabajos', vacio.status === 200 && vacio.datos.registros === 0 && vacio.datos.total === 0);
-  espera('proforma sin trabajos', await api('POST', '/api/documentos/proforma', { desde: '2031-01-01', hasta: '2031-12-31' }), 400);
-  espera('resumen sin trabajos', await api('POST', '/api/documentos/resumen', { desde: '2031-01-01', hasta: '2031-12-31' }), 400);
-  espera('cobrar periodo vacío', await api('POST', '/api/cobros/cobrar', { desde: '2031-01-01', hasta: '2031-12-31' }), 400);
-  espera('resumen con periodo invertido', await api('POST', '/api/documentos/resumen', { desde: HASTA, hasta: DESDE }), 400);
-
-  let pend = (await api('GET', '/api/cobros/pendiente?desde=' + DESDE + '&hasta=' + HASTA)).datos;
-  comprobar('pendiente suma los dos gastos', pend.registros === 2 && pend.total === 30.5, pend.total);
-  const [t1, t2] = pend.lineas;
+  const pend = await pendientes();
+  comprobar('los dos gastos quedan pendientes', pend.length === 2 && pend.reduce((s, t) => s + Number(t.importe), 0) === 30.5, pend);
+  const [t1] = pend;
 
   // Grafo del trabajo: PENDIENTE <-> NO_COBRAR
   espera('trabajo: estado inventado', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'BORRADO' }), 400);
   espera('trabajo inexistente', await api('POST', '/api/trabajos/999999/estado', { estado: 'NO_COBRAR' }), 404);
-  espera('trabajo -> no cobrar', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'NO_COBRAR' }), 200);
-  comprobar('lo que no se cobra sale del pendiente', (await api('GET', '/api/cobros/pendiente?desde=' + DESDE + '&hasta=' + HASTA)).datos.total === 20);
-  espera('trabajo -> volver a cobrar', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'CERRADA' }), 200);
+  espera('trabajo -> no se factura', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'NO_COBRAR' }), 200);
+  comprobar('lo que no se factura sale del pendiente', (await pendientes()).length === 1);
+  espera('trabajo -> volver a facturar', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'CERRADA' }), 200);
 
-  // Un resumen es informativo: no bloquea nada.
-  const resumen = espera('resumen de servicios', await api('POST', '/api/documentos/resumen', periodo), 201);
-  comprobar('resumen informativo con sus líneas', resumen.tipo === 'RESUMEN' && resumen.estado === 'INFORMATIVO' && resumen.servicios === 2, resumen);
-
-  // Dos proformas a la vez sobre lo mismo: solo una se crea.
-  const doble = await Promise.all([api('POST', '/api/documentos/proforma', periodo), api('POST', '/api/documentos/proforma', periodo)]);
-  comprobar('dos proformas simultáneas: una 201 y otra 400', doble.map(r => r.status).sort().join() === '201,400', doble.map(r => r.status));
-  const pf1 = doble.find(r => r.status === 201).datos;
-
-  espera('trabajo en proforma no cambia de estado', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'NO_COBRAR' }), 409);
-  espera('cobrar periodo con trabajos en proforma', await api('POST', '/api/cobros/cobrar', periodo), 409);
-  espera('proforma: cobrar', await api('POST', '/api/documentos/' + pf1.id + '/cobrar', {}), 400);
-  espera('proforma: rectificar', await api('POST', '/api/documentos/' + pf1.id + '/rectificar', { motivo: 'x' }), 400);
-  espera('resumen: facturar', await api('POST', '/api/documentos/' + resumen.id + '/facturar', {}), 400);
-  espera('resumen: anular', await api('POST', '/api/documentos/' + resumen.id + '/anular', {}), 400);
-  espera('documento inexistente', await api('GET', '/api/documentos/999999'), 404);
-  espera('acción sobre documento inexistente', await api('POST', '/api/documentos/999999/facturar', {}), 404);
-  espera('PDF de un documento sin PDF', await api('GET', '/api/documentos/' + pf1.id + '/pdf'), 404);
-  comprobar('página imprimible', (await api('GET', '/api/documentos/' + pf1.id + '/imprimir')).status === 200);
-
-  // PENDIENTE -> ANULADA, y nada más desde ahí.
-  comprobar('anular proforma', (await api('POST', '/api/documentos/' + pf1.id + '/anular', {})).datos.estado === 'ANULADA');
-  espera('anular dos veces', await api('POST', '/api/documentos/' + pf1.id + '/anular', {}), 400);
-  espera('facturar una proforma anulada', await api('POST', '/api/documentos/' + pf1.id + '/facturar', {}), 400);
-  comprobar('al anular, los trabajos quedan libres', (await api('GET', '/api/cobros/pendiente?desde=' + DESDE + '&hasta=' + HASTA)).datos.lineas.every(l => !l.documento));
-
-  // Sin datos fiscales del cliente no se factura.
-  const clientes = (await api('GET', '/api/clientes')).datos;
-  const original = clientes[0];
-  await api('POST', '/api/clientes', { ...original, nif: '', direccion: '' });
-  const pf2 = (await api('POST', '/api/documentos/proforma', periodo)).datos;
-  espera('facturar sin NIF ni dirección del cliente', await api('POST', '/api/documentos/' + pf2.id + '/facturar', {}), 400);
-  comprobar('el intento fallido no consume número ni cambia la proforma', (await api('GET', '/api/documentos/' + pf2.id)).datos.estado === 'PENDIENTE');
-  await api('POST', '/api/clientes', { ...original, nif: original.nif || 'B00000000', direccion: original.direccion || 'Calle de prueba 1' });
-  espera('cliente sin nombre', await api('POST', '/api/clientes', { ...original, nombre: '' }), 400);
-
-  // PENDIENTE -> FACTURADA + factura EMITIDA
-  const dosFacturas = await Promise.all([api('POST', '/api/documentos/' + pf2.id + '/facturar', {}), api('POST', '/api/documentos/' + pf2.id + '/facturar', {})]);
-  comprobar('facturar dos veces a la vez: una 201 y otra 400', dosFacturas.map(r => r.status).sort().join() === '201,400', dosFacturas.map(r => r.status));
-  const f1 = dosFacturas.find(r => r.status === 201).datos;
-  comprobar('la proforma queda facturada', (await api('GET', '/api/documentos/' + pf2.id)).datos.estado === 'FACTURADA');
-  espera('anular una proforma ya facturada', await api('POST', '/api/documentos/' + pf2.id + '/anular', {}), 400);
-  espera('factura: anular', await api('POST', '/api/documentos/' + f1.id + '/anular', {}), 400);
-  espera('factura: facturar', await api('POST', '/api/documentos/' + f1.id + '/facturar', {}), 400);
-  espera('trabajo facturado no cambia de estado', await api('POST', '/api/trabajos/' + t2.id + '/estado', { estado: 'NO_COBRAR' }), 409);
-  espera('cobrar periodo con trabajos en factura', await api('POST', '/api/cobros/cobrar', periodo), 409);
-  espera('proforma de trabajos ya facturados', await api('POST', '/api/documentos/proforma', periodo), 400);
-
-  // EMITIDA -> RECTIFICADA + rectificativa que la anula al céntimo
-  espera('rectificar sin motivo', await api('POST', '/api/documentos/' + f1.id + '/rectificar', { motivo: ' ' }), 400);
-  const r1 = espera('rectificar', await api('POST', '/api/documentos/' + f1.id + '/rectificar', { motivo: 'Prueba' }), 201);
-  comprobar('la rectificativa anula exactamente la factura', r1.total === -f1.total && r1.base === -f1.base, [f1.total, r1.total]);
-  espera('rectificar dos veces', await api('POST', '/api/documentos/' + f1.id + '/rectificar', { motivo: 'x' }), 400);
-  espera('cobrar una factura rectificada', await api('POST', '/api/documentos/' + f1.id + '/cobrar', {}), 400);
-  espera('rectificativa: rectificar', await api('POST', '/api/documentos/' + r1.id + '/rectificar', { motivo: 'x' }), 400);
-  espera('rectificativa: cobrar', await api('POST', '/api/documentos/' + r1.id + '/cobrar', {}), 400);
-  comprobar('tras rectificar, los trabajos vuelven a estar libres', (await api('GET', '/api/cobros/pendiente?desde=' + DESDE + '&hasta=' + HASTA)).datos.lineas.every(l => !l.documento));
-
-  // EMITIDA -> COBRADA: final
-  const pf3 = (await api('POST', '/api/documentos/proforma', periodo)).datos;
-  const f2 = (await api('POST', '/api/documentos/' + pf3.id + '/facturar', {})).datos;
-  comprobar('numeración de facturas correlativa', f2.codigo.slice(0, -4) === f1.codigo.slice(0, -4) && Number(f2.codigo.slice(-4)) === Number(f1.codigo.slice(-4)) + 1, [f1.codigo, f2.codigo]);
-  const dosCobros = await Promise.all([api('POST', '/api/documentos/' + f2.id + '/cobrar', {}), api('POST', '/api/documentos/' + f2.id + '/cobrar', {})]);
-  comprobar('cobrar dos veces a la vez: una 200 y otra 400', dosCobros.map(r => r.status).sort().join() === '200,400', dosCobros.map(r => r.status));
-  espera('rectificar una factura cobrada', await api('POST', '/api/documentos/' + f2.id + '/rectificar', { motivo: 'x' }), 400);
-  espera('trabajo cobrado no cambia de estado', await api('POST', '/api/trabajos/' + t1.id + '/estado', { estado: 'NO_COBRAR' }), 409);
-  comprobar('lo cobrado sale del pendiente', (await api('GET', '/api/cobros/pendiente?desde=' + DESDE + '&hasta=' + HASTA)).datos.registros === 0);
-  const detalle = (await api('GET', '/api/documentos/' + f2.id)).datos;
-  comprobar('la factura cobrada enlaza su cobro y su proforma', detalle.pago && detalle.relacionados.some(d => d.id === pf3.id), detalle.relacionados);
-  comprobar('un resumen incluye también lo cobrado', (await api('POST', '/api/documentos/resumen', periodo)).datos.servicios === 2);
-
-  // Cobro directo de un periodo, sin factura.
-  await gasto(7, '2030-07-01');
-  espera('cobrar periodo', await api('POST', '/api/cobros/cobrar', periodo), 200);
-  espera('cobrar el mismo periodo otra vez', await api('POST', '/api/cobros/cobrar', periodo), 400);
+  // Los cobros y documentos ya no existen en el gestor.
+  espera('sin cobros', await api('GET', '/api/cobros/pendiente?desde=2030-01-01&hasta=2030-12-31'), 404);
+  espera('sin documentos', await api('GET', '/api/documentos'), 404);
 }
 
-// La pregunta de fondo: reabrir una incidencia ya cobrada.
+// Reabrir una incidencia: el tiempo nuevo es otra sesión pendiente.
 async function reapertura() {
   const inc = await nueva();
   await api('POST', '/api/incidencias/' + inc.id + '/notas', { texto: 'primera sesión', minutos: 30 });
   await api('PATCH', '/api/incidencias/' + inc.id, { estado: 'resolved' });
-  espera('cobrar la sesión de hoy', await api('POST', '/api/cobros/cobrar', { desde: HOY, hasta: HOY }), 200);
-
-  let ficha = (await api('GET', '/api/incidencias/' + inc.id)).datos;
-  comprobar('la sesión figura como cobrada', ficha.sesiones.length === 1 && ficha.sesiones[0].situacion.clave === 'COBRADO', ficha.sesiones);
-
-  espera('reabrir una incidencia cobrada', await api('PATCH', '/api/incidencias/' + inc.id, { estado: 'assigned' }), 200);
-  ficha = espera('nuevo tiempo tras reabrir', await api('POST', '/api/incidencias/' + inc.id + '/notas', { texto: 'segunda sesión', minutos: 20 }), 201);
-  const claves = ficha.sesiones.map(s => s.situacion.clave).sort().join();
-  comprobar('la sesión antigua sigue cobrada y la nueva queda pendiente', claves === 'COBRADO,PENDIENTE', claves);
-  const antigua = ficha.sesiones.find(s => s.situacion.clave === 'COBRADO');
-  espera('la sesión cobrada no se puede tocar', await api('POST', '/api/trabajos/' + antigua.id + '/estado', { estado: 'NO_COBRAR' }), 409);
+  espera('reabrir', await api('PATCH', '/api/incidencias/' + inc.id, { estado: 'assigned' }), 200);
+  const ficha = espera('nuevo tiempo tras reabrir', await api('POST', '/api/incidencias/' + inc.id + '/notas', { texto: 'segunda sesión', minutos: 20 }), 201);
+  comprobar('dos sesiones pendientes', ficha.sesiones.length === 2 && ficha.sesiones.every(s => s.situacion.clave === 'PENDIENTE'), ficha.sesiones);
 }
 
 (async () => {
-  const bloques = { acceso, incidencias, cronometro, facturacion, reapertura };
+  const bloques = { acceso, incidencias, cronometro, horas, reapertura };
   for (const nombre of Object.keys(bloques)) {
     const antes = pasan + fallos.length;
     try {

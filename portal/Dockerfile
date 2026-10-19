@@ -3,10 +3,6 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production TZ=Europe/Madrid
 
-# Chromium imprime los documentos en PDF para adjuntarlos a los correos
-# (src/pdf.js). Liberation trae letras con las medidas de Arial.
-RUN apk add --no-cache chromium font-liberation
-
 COPY package.json ./
 RUN npm install --omit=dev && npm cache clean --force
 

@@ -4,7 +4,9 @@ Sistema propio de incidencias, documentación y horas: el **portal** (`portal/`)
 del Gestor de peticiones. Node.js + Express, sin framework en el navegador, y MariaDB.
 
 Todo se guarda en tablas `ha_*`: incidencias, notas, adjuntos e historial
-(`portal/src/incidencias.js`), además de usuarios, cronómetro y cobros. Hasta ahora las incidencias
+(`portal/src/incidencias.js`), además de usuarios, cronómetro y horas. El gestor no cobra ni
+factura: las horas pendientes llegan a Sindri ([Llevar los datos a Sindri](#llevar-los-datos-a-sindri)),
+donde se pasan a un pedido y se facturan. Hasta ahora las incidencias
 vivían en **MantisBT 2.28.4**, que el portal usaba solo como almacén por su API REST. Ver
 [Adiós a MantisBT](#adiós-a-mantisbt): lo que queda de MantisBT en este repositorio se quitará
 cuando DEV y PRO hayan copiado sus incidencias.
@@ -161,13 +163,6 @@ MAIL_LLAVE=ml_…        # en Mail → Llaves, app «soporte»
 
 Sin esas dos el portal funciona igual pero no envía nada (ni la vista previa de Correo).
 
-**Documentos por correo.** En Cobros → Documentos, «Enviar por correo» abre Correo con el
-destinatario (el correo del cliente), el asunto y el mensaje escritos y el PDF del documento
-adjunto. Los documentos históricos llevan su PDF original; los demás, la misma página de
-«Ver / PDF» impresa por Chromium dentro de la imagen (`portal/src/pdf.js`). Hace falta una
-versión de Mail con adjuntos: si Mail es anterior, el correo sale sin el PDF y el portal lo
-avisa. Fuera de la imagen, `CHROMIUM_RUTA` dice dónde está Chromium.
-
 ### Entrada con Keycloak
 
 En el servidor DEV/PRO el portal entra con Keycloak (realm `general`), como las demás apps:
@@ -194,9 +189,9 @@ sin duplicar.
 docker compose exec portal node scripts/migrar-hoja.js /migracion
 ```
 
-Los PDF que el gestor antiguo guardó en Drive se importan con
-`portal/scripts/importar-documentos.js` desde `migracion/documentos/` (un `indice.json` y un
-`<id>.pdf` por documento). Quedan como resúmenes históricos con su PDF original.
+Los cobros, pagos y documentos de antes (tablas `ha_pago`, `ha_documento`, `ha_documento_pdf`) se
+conservan en la base de datos pero el portal ya no los enseña: se cobra y se factura en Sindri. Una
+sesión cobrada o metida en una factura de entonces no vuelve a facturarse.
 
 ## Llevar los datos a Sindri
 
@@ -218,13 +213,19 @@ lo que queda por facturar, y no guarda nada hasta pulsar «Importar». No borra 
 actualiza en vez de duplicar (clientes por NIF, artículos por referencia, trabajos por su código).
 Las incidencias y los documentos siguen en el gestor.
 
+En la ficha de cada incidencia, «Servicio para Sindri» fija el artículo con que se facturan sus
+sesiones (los servicios por horas de Sindri, o el catálogo propio si Sindri no está conectado). Si
+se deja en «Automático», se usa el que se deduce del título.
+
 ### Envío automático
 
 Con la conexión puesta, lo pendiente de cobrar llega solo a **Por facturar** de Sindri, unos
 segundos después de cada cambio en el portal y cada 10 minutos (`portal/src/sindri.js`). Cada envío
 manda todo lo pendiente: Sindri actualiza lo que sigue pendiente allí y no toca lo que ya está en un
 pedido. Lo que aquí deja de estar pendiente (reabierto, «No se cobra», cobrado) se retira de Sindri
-si allí sigue pendiente. No crea pedidos ni facturas: eso se hace en Sindri.
+si allí sigue pendiente. No crea pedidos ni facturas: eso se hace en Sindri, juntando lo pendiente
+en un pedido. Cada envío anota en el gestor en qué pedido de Sindri está cada sesión («En pedido
+Sindri …» en Horas y en la ficha) y entonces ya no se puede marcar como «No se factura».
 
 1. En Sindri, **Ajustes → Integraciones**: crear una llave llamada `incidencias` (el mismo origen que
    el fichero, para que lo importado y lo enviado sean lo mismo).
@@ -238,8 +239,8 @@ y Ajustes → Sindri lo dice.
 
 ## Pruebas de casuística
 
-`portal/tests/casuistica.js` recorre los grafos de estados (incidencia, cronómetro, trabajo y
-documento) y comprueba cada transición, permitida o prohibida, además de accesos, validaciones y
+`portal/tests/casuistica.js` recorre los grafos de estados (incidencia, cronómetro y trabajo) y
+comprueba cada transición, permitida o prohibida, además de accesos, validaciones y
 operaciones simultáneas. Crea datos, así que solo se ejecuta en desarrollo, con copia previa:
 
 ```
@@ -250,11 +251,10 @@ docker compose exec -T db sh -c "mariadb -uroot -p$MARIADB_ROOT_PASSWORD mantisb
 
 Reglas que fijan esas pruebas:
 
-- Lo que se factura es la sesión de trabajo, no la incidencia. Reabrir una incidencia cobrada es
-  válido: sus sesiones cobradas no cambian y el tiempo nuevo queda pendiente.
+- Lo que se factura es la sesión de trabajo, no la incidencia. Reabrir una incidencia ya facturada
+  es válido: sus sesiones no cambian y el tiempo nuevo queda pendiente.
 - Solo se registra tiempo en incidencias abiertas; no se resuelve una con su cronómetro en marcha.
-- Una sesión en una proforma, en una factura o cobrada no se puede modificar.
-- Una factura emitida no se edita ni se borra: se cobra o se rectifica.
+- Una sesión en un pedido de Sindri, o cobrada antes en el gestor, no se puede modificar.
 
 ## Estructura
 

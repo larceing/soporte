@@ -29,12 +29,12 @@ jobs:
           for f in portal/server.js portal/src/*.js portal/scripts/*.js portal/public/js/*.js; do
             node --check "$f"
           done
-      - name: prefijo de ruta y Keycloak
+      - name: prefijo de ruta, Keycloak y Sindri
         run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/exportar-sindri.js && node portal/tests/sindri.js
-      - name: la imagen genera el PDF de un documento (Chromium dentro)
+      - name: la imagen se construye y arranca el código
         run: |
           docker build -t portal-prueba portal
-          docker run --rm -v "$PWD/portal/tests:/app/tests:ro" portal-prueba node tests/pdf.js
+          docker run --rm portal-prueba node -e "require('./src/api'); require('./src/resumen'); require('./src/sindri')"
       - name: script del servidor
         run: bash -n scripts/instalar-servidor.sh
       - name: los compose se entienden
