@@ -227,7 +227,7 @@ si allí sigue pendiente. No crea pedidos ni facturas: eso se hace en Sindri, ju
 en un pedido. Cada envío anota en el gestor en qué pedido de Sindri está cada sesión («En pedido
 Sindri …» en Horas y en la ficha) y entonces ya no se puede marcar como «No se factura».
 
-1. En Sindri, **Ajustes → Integraciones**: crear una llave llamada `incidencias` (el mismo origen que
+1. En Sindri, **Empresa → Integraciones**: crear una llave llamada `incidencias` (el mismo origen que
    el fichero, para que lo importado y lo enviado sean lo mismo).
 2. En el portal, **Ajustes → Sindri**: la dirección de Sindri (por dentro, `http://sindri-<entorno>:8000`)
    y la llave. La llave no vuelve nunca al navegador. También pueden ir como `SINDRI_URL` y
@@ -236,6 +236,28 @@ Sindri …» en Horas y en la ficha) y entonces ya no se puede marcar como «No 
 Antes hay que importar una vez el fichero, que crea en Sindri los clientes y los servicios: la API
 de integración no los crea. Un trabajo de un cliente o servicio que Sindri no tiene se queda fuera
 y Ajustes → Sindri lo dice.
+
+## Gestor de tareas
+
+Cada incidencia abierta tiene su tarea en el gestor de tareas, sin hacer nada (`portal/src/tareas.js`,
+con la API normal de Tareas):
+
+- incidencia abierta sin tarea → se crea en el proyecto elegido, con su prioridad, su fecha límite,
+  la descripción y un enlace a la ficha;
+- cambian el título, la prioridad o la fecha límite → se cambian en la tarea;
+- se resuelve o se cierra → la tarea pasa a la última columna del tablero (la de hechas); si se
+  reabre, vuelve a la primera;
+- una tarea borrada en Tareas no se vuelve a crear.
+
+Va unos segundos después de cada cambio en el portal y cada 10 minutos. Las horas se siguen
+apuntando aquí, que es quien las lleva a Sindri.
+
+1. En Tareas, **Configuración → API**: crear un token (la tarea la firma su dueño).
+2. En el portal, **Ajustes → Tareas**: la dirección de Tareas (por dentro, `http://tareas-<entorno>:8000`),
+   la llave y el id del proyecto donde caen. También pueden ir como `TAREAS_URL`, `TAREAS_LLAVE` y
+   `TAREAS_PROYECTO` en el `app.env`, y entonces mandan esas.
+
+El enlace a la ficha usa `PORTAL_URL` (o `APP_URL_PUBLICA`, que pone el servidor).
 
 ## Pruebas de casuística
 

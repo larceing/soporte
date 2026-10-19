@@ -148,6 +148,7 @@ async function ajustesCargar() {
     : 'El envío de correo no está configurado en este servidor: no se enviará nada.';
 
   sindriCargar();
+  tareasCargar();
 
   Object.keys(cfg).forEach(function(clave) {
     const campo = document.getElementById('cfg_' + clave);
@@ -245,6 +246,67 @@ async function sindriQuitar() {
     coreMensaje('mensajeSindri', 'Llave quitada: ya no se envía nada.', 'ok');
   } catch (err) {
     coreMensaje('mensajeSindri', err.message, 'error');
+  }
+}
+
+/* Tareas */
+
+function tareasPintar(e) {
+  const fecha = function(iso) { return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }); };
+  const desdeEntorno = e.desde === 'entorno';
+  document.getElementById('tareasCampos').classList.toggle('hidden', desdeEntorno);
+  document.getElementById('tareasGuardarBtn').classList.toggle('hidden', desdeEntorno);
+  document.getElementById('tareasQuitarBtn').classList.toggle('hidden', desdeEntorno || !e.configurado);
+  document.getElementById('tareasUrl').value = e.url || '';
+  document.getElementById('tareasProyecto').value = e.proyecto || '';
+  document.getElementById('tareasLlave').value = '';
+  document.getElementById('tareasLlave').placeholder = e.configurado ? 'Guardada (escribe otra para cambiarla)' : '';
+  const u = e.ultima;
+  let t;
+  if (!e.configurado) t = 'Sin conectar: no se crea ninguna tarea.';
+  else if (!u) t = 'Conectado' + (desdeEntorno ? ' (lo pone el servidor)' : '') + '. El primer envío sale en unos segundos.';
+  else if (!u.ok) t = 'Último intento, ' + fecha(u.cuando) + ': ' + u.error;
+  else {
+    t = 'Último envío a ' + u.proyecto + ', ' + fecha(u.cuando) + ': ' + u.creadas + ' creadas, ' + u.cambiadas + ' cambiadas, ' +
+      u.cerradas + ' a hechas, ' + u.reabiertas + ' reabiertas.';
+    if (u.errores.length) t += ' Fallaron ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
+  }
+  document.getElementById('tareasEstado').textContent = t;
+}
+
+async function tareasCargar() {
+  try { tareasPintar(await api('GET', '/tareas')); } catch (err) { coreMensaje('mensajeTareas', err.message, 'error'); }
+}
+
+async function tareasGuardar() {
+  try {
+    tareasPintar(await api('PUT', '/tareas', {
+      url: document.getElementById('tareasUrl').value,
+      llave: document.getElementById('tareasLlave').value,
+      proyecto: document.getElementById('tareasProyecto').value
+    }));
+    coreMensaje('mensajeTareas', 'Guardado. El envío sale en unos segundos.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeTareas', err.message, 'error');
+  }
+}
+
+async function tareasEnviar() {
+  coreMensaje('mensajeTareas', 'Enviando...', 'info');
+  try {
+    tareasPintar(await api('POST', '/tareas/enviar', {}));
+    document.getElementById('mensajeTareas').classList.add('hidden');
+  } catch (err) {
+    coreMensaje('mensajeTareas', err.message, 'error');
+  }
+}
+
+async function tareasQuitar() {
+  try {
+    tareasPintar(await api('PUT', '/tareas', { quitar: true }));
+    coreMensaje('mensajeTareas', 'Llave quitada: ya no se crea ninguna tarea.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeTareas', err.message, 'error');
   }
 }
 

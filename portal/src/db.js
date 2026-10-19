@@ -193,7 +193,12 @@ const TABLAS = [
   // Sindri: el servicio (artículo) con que se factura una incidencia (vacío = el que se deduce
   // del título) y el pedido de Sindri en que está ya cada trabajo.
   `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS servicio_sku VARCHAR(40) NULL`,
-  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_pedido VARCHAR(40) NULL`
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_pedido VARCHAR(40) NULL`,
+  // Tareas: la tarea de cada incidencia, si está abierta, cerrada o borrada allí, y la huella de lo
+  // último que se le mandó (src/tareas.js).
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS tarea_id VARCHAR(40) NULL`,
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS tarea_estado VARCHAR(16) NULL`,
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS tarea_huella VARCHAR(40) NULL`
 ];
 
 async function migrar() {

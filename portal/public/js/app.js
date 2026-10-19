@@ -709,4 +709,7 @@ async function detalleAdjuntar() {
     coreError(err);
   }
   coreMostrarVista('inicio');
+  // Enlace directo a una incidencia (lo usa la tarea que tiene en el gestor de tareas).
+  const enlace = /^#incidencia-(\d+)$/.exec(location.hash);
+  if (enlace) detalleAbrir(enlace[1]);
 })();

@@ -139,6 +139,7 @@ async function arrancar() {
   app.listen(puerto, () => console.log('Portal escuchando en el puerto ' + puerto));
   resumen.programar();
   require('./src/sindri').arrancar();
+  require('./src/tareas').arrancar();
 }
 
 arrancar().catch(e => {
