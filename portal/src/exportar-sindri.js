@@ -1,18 +1,11 @@
 // Los datos del gestor en el formato que importa Sindri («sindri-datos», versión 1): el emisor
-// como empresa, los clientes con su contacto y su tarifa, los servicios como artículos y el
+// como empresa, los clientes con su contacto y su tarifa, los servicios (src/servicios.js) como artículos y el
 // trabajo pendiente de cobrar como «por facturar» (las horas son la cantidad). En Sindri se
 // importa en Empresa → Llevar y traer datos; no borra nada allí.
 
 const IVA_SINDRI = ['0', '4', '10', '21'];
 
-// Un artículo por tipo de trabajo. Las horas de una incidencia o petición van a su servicio; las
-// que no cuelgan de ninguna, a la hora de soporte; los cobros sueltos, a «Otros cargos».
-const SERVICIOS = {
-  INCIDENCIA: { sku: 'SOP-INC', name: 'Soporte: resolución de incidencias' },
-  PETICION: { sku: 'SOP-PET', name: 'Soporte: peticiones y desarrollos' },
-  HORA: { sku: 'HORA', name: 'Hora de soporte' }
-};
-const CARGO = { sku: 'SOP-CARGO', name: 'Otros cargos' };
+const { SERVICIOS, CARGO, servicioDe } = require('./servicios');
 
 function numero(v) {
   const n = Number(String(v ?? '').replace(',', '.'));
@@ -20,11 +13,6 @@ function numero(v) {
 }
 
 const texto = n => String(Math.round(n * 10000) / 10000);
-
-function servicioDe(tipoIncidencia) {
-  if (!tipoIncidencia) return SERVICIOS.HORA;
-  return /^pet/i.test(tipoIncidencia) ? SERVICIOS.PETICION : SERVICIOS.INCIDENCIA;
-}
 
 const dia = d => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
 
@@ -35,7 +23,7 @@ function datosParaSindri(cfg, clientes, trabajos = []) {
   const irpf = numero(cfg.IRPF);
   const iva = IVA_SINDRI.includes(String(numero(cfg.IVA))) ? String(numero(cfg.IVA)) : '21';
   const general = numero(cfg.TARIFA_HORA);
-  const horas = Object.values(SERVICIOS);
+  const horas = SERVICIOS;
   const nombreDe = c => (c.razon_social || c.nombre).trim();
   const porId = new Map(clientes.map(c => [Number(c.id), c]));
 
@@ -75,14 +63,15 @@ function datosParaSindri(cfg, clientes, trabajos = []) {
       const cantidad = deTiempo ? numero(t.horas) : 1;
       if (!(cantidad > 0)) return [];
       const inc = t.incidencia_codigo ? `${t.incidencia_codigo} ${t.incidencia_titulo || ''}`.trim() : '';
+      const concepto = t.concepto && t.concepto !== t.incidencia_titulo ? t.concepto : '';
       return [{
         ref: t.codigo,
         cliente: { tax_id: c.nif || null, name: nombreDe(c) },
-        sku: deTiempo ? servicioDe(t.incidencia_tipo).sku : CARGO.sku,
+        sku: deTiempo ? servicioDe(`${t.incidencia_titulo || ''} ${t.concepto || ''}`, t.incidencia_tipo).sku : CARGO.sku,
         fecha: dia(t.dia),
         cantidad: texto(cantidad),
         precio: texto(numero(deTiempo ? t.tarifa : t.importe) || 0),
-        descripcion: [inc, t.concepto].filter(Boolean).join(' · ').slice(0, 500) || 'Trabajo'
+        descripcion: [inc, concepto].filter(Boolean).join(' · ').slice(0, 500) || 'Trabajo'
       }];
     })
   };
@@ -92,4 +81,4 @@ function datosParaSindri(cfg, clientes, trabajos = []) {
   return datos;
 }
 
-module.exports = { datosParaSindri, SERVICIOS, CARGO };
+module.exports = { datosParaSindri };
