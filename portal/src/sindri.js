@@ -1,0 +1,180 @@
+// Envío automático a Sindri: lo pendiente de cobrar del gestor aparece solo en Sindri → Pedidos →
+// Por facturar, con su servicio y su tarifa. Usa la API de integración de Sindri con una llave de
+// la empresa (en Sindri, Ajustes → Integraciones). La llave se llama «incidencias», como el origen
+// del fichero «Descargar para Sindri», para que lo importado y lo enviado sean lo mismo.
+//
+// Cada envío manda todo lo pendiente (Sindri actualiza lo que sigue pendiente allí y no toca lo que
+// ya está en un pedido) y retira de Sindri lo que aquí ya no está pendiente. Se envía unos
+// segundos después de cada cambio en el portal y, por si acaso, cada 10 minutos.
+//
+// Dónde está Sindri y su llave: SINDRI_URL y SINDRI_LLAVE en el entorno o, si no están, en
+// Ajustes → Sindri (la llave se guarda en ha_config y nunca vuelve al navegador).
+
+const { consulta } = require('./db');
+const fact = require('./facturacion');
+const { datosParaSindri } = require('./exportar-sindri');
+
+const ESPERA = 5000;
+const CADA = 10 * 60 * 1000;
+const NOMBRE_LLAVE = 'incidencias';
+
+let ultima = null;
+let enCurso = null;
+let pendienteOtra = false;
+let temporizador = null;
+
+const sinBarra = s => String(s || '').trim().replace(/\/+$/, '');
+
+async function conexion() {
+  if (process.env.SINDRI_URL && process.env.SINDRI_LLAVE) {
+    return { url: sinBarra(process.env.SINDRI_URL), llave: process.env.SINDRI_LLAVE.trim(), desde: 'entorno' };
+  }
+  const filas = await consulta("SELECT clave, valor FROM ha_config WHERE clave IN ('SINDRI_URL', 'SINDRI_LLAVE')");
+  const v = Object.fromEntries(filas.map(f => [f.clave, f.valor]));
+  if (v.SINDRI_URL && v.SINDRI_LLAVE) return { url: sinBarra(v.SINDRI_URL), llave: v.SINDRI_LLAVE, desde: 'ajustes' };
+  return { url: sinBarra(v.SINDRI_URL || process.env.SINDRI_URL), llave: '', desde: null };
+}
+
+async function guardarConexion({ url, llave, quitar }) {
+  const poner = (clave, valor) => consulta(
+    'INSERT INTO ha_config (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [clave, valor]
+  );
+  if (quitar) {
+    await consulta("DELETE FROM ha_config WHERE clave = 'SINDRI_LLAVE'");
+    ultima = null;
+    return estado();
+  }
+  if (url !== undefined) {
+    const u = sinBarra(url);
+    if (u && !/^https?:\/\/[^\s]+$/i.test(u)) {
+      const e = new Error('La dirección de Sindri debe empezar por http:// o https://');
+      e.status = 400;
+      throw e;
+    }
+    await poner('SINDRI_URL', u.slice(0, 500));
+  }
+  if (llave && String(llave).trim()) await poner('SINDRI_LLAVE', String(llave).trim().slice(0, 200));
+  ultima = null;
+  programar();
+  return estado();
+}
+
+async function llamar(c, metodo, ruta, cuerpo) {
+  const r = await fetch(c.url + '/api/integracion/v1' + ruta, {
+    method: metodo,
+    headers: { Authorization: 'Bearer ' + c.llave, ...(cuerpo ? { 'Content-Type': 'application/json' } : {}) },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    signal: AbortSignal.timeout(30000)
+  });
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(r.status === 401 ? 'Sindri no acepta la llave (no es válida o está revocada).' : (datos.error || 'Sindri ha respondido ' + r.status + '.'));
+    e.status = r.status;
+    throw e;
+  }
+  return datos;
+}
+
+// Lo que en el gestor está pendiente de cobrar, igual que en «Descargar para Sindri».
+async function trabajosPendientes() {
+  const ocupados = await fact.trabajosOcupados();
+  return (await consulta(
+    `SELECT t.id, t.codigo, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
+            i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo
+       FROM ha_trabajo t LEFT JOIN ha_incidencia i ON i.id = t.incidencia_id
+      WHERE t.estado = 'CERRADA' AND t.pago_id IS NULL
+      ORDER BY t.dia, t.id`
+  )).map(t => ({ ...t, ocupado: ocupados.has(Number(t.id)) }));
+}
+
+const clave = s => String(s || '').trim().toLowerCase();
+const nif = s => String(s || '').replace(/[\s.-]/g, '').toUpperCase();
+
+// El cliente de Sindri de cada elemento: por NIF y, si no, por nombre o nombre comercial.
+function elementosParaSindri(porFacturar, clientesSindri) {
+  const porNif = new Map(clientesSindri.filter(c => c.tax_id).map(c => [nif(c.tax_id), c.id]));
+  const porNombre = new Map();
+  clientesSindri.forEach(c => [c.name, c.trade_name].filter(Boolean).forEach(n => porNombre.set(clave(n), c.id)));
+  const elementos = [];
+  const sinCliente = [];
+  for (const p of porFacturar) {
+    const id = (p.cliente.tax_id && porNif.get(nif(p.cliente.tax_id))) || porNombre.get(clave(p.cliente.name));
+    if (!id) { sinCliente.push({ ref: p.ref, error: 'No hay cliente ' + p.cliente.name + ' en Sindri' }); continue; }
+    elementos.push({ ref: p.ref, cliente: id, producto: p.sku, fecha: p.fecha, cantidad: p.cantidad, precio: p.precio, descripcion: p.descripcion });
+  }
+  return { elementos, sinCliente };
+}
+
+async function enviar() {
+  const c = await conexion();
+  if (!c.llave || !c.url) return null;
+  const inicio = new Date();
+  try {
+    const yo = await llamar(c, 'GET', '/yo');
+    const [cfg, clientes, trabajos] = await Promise.all([fact.config(), consulta('SELECT * FROM ha_cliente ORDER BY nombre'), trabajosPendientes()]);
+    const { por_facturar } = datosParaSindri(cfg, clientes, trabajos);
+    const { elementos, sinCliente } = elementosParaSindri(por_facturar, await llamar(c, 'GET', '/clientes'));
+
+    const cuenta = { creado: 0, actualizado: 0, en_pedido: 0, descartado: 0, retirados: 0 };
+    const errores = [...sinCliente];
+    for (let i = 0; i < elementos.length; i += 500) {
+      const r = await llamar(c, 'POST', '/por-facturar', { elementos: elementos.slice(i, i + 500) });
+      for (const e of r.elementos || []) {
+        if (e.estado === 'error') errores.push({ ref: e.ref, error: e.error });
+        else cuenta[e.estado] = (cuenta[e.estado] || 0) + 1;
+      }
+    }
+
+    // Lo que Sindri tiene pendiente de este origen y aquí ya no lo está (reabierto, no cobrar,
+    // cobrado aquí...) se retira. Lo que ya está en un pedido de Sindri no se toca.
+    const aqui = new Set(por_facturar.map(p => p.ref));
+    const enSindri = await llamar(c, 'GET', '/por-facturar');
+    for (const e of enSindri) {
+      if (e.estado !== 'pendiente' || aqui.has(e.ref)) continue;
+      try {
+        await llamar(c, 'DELETE', '/por-facturar/' + encodeURIComponent(e.ref));
+        cuenta.retirados++;
+      } catch (err) {
+        errores.push({ ref: e.ref, error: err.message });
+      }
+    }
+
+    ultima = {
+      ok: true, cuando: inicio.toISOString(), empresa: yo.empresa && (yo.empresa.trade_name || yo.empresa.name),
+      llave: yo.app, aviso: yo.app !== NOMBRE_LLAVE ? 'La llave de Sindri se llama «' + yo.app + '»: llámala «' + NOMBRE_LLAVE + '» para que lo enviado y lo importado con el fichero sean lo mismo.' : '',
+      pendientes: por_facturar.length, ...cuenta, errores: errores.slice(0, 50)
+    };
+  } catch (e) {
+    ultima = { ok: false, cuando: inicio.toISOString(), error: e.name === 'TimeoutError' ? 'Sindri no responde.' : (e.cause ? 'No se puede conectar con Sindri en ' + c.url + '.' : e.message) };
+    if (!e.status) console.error('Sindri: ' + (e.cause ? e.cause.message : e.message));
+  }
+  return ultima;
+}
+
+// Un envío cada vez; si llega un cambio mientras tanto, se repite al terminar.
+async function sincronizar() {
+  if (enCurso) { pendienteOtra = true; return enCurso; }
+  enCurso = enviar().finally(() => {
+    enCurso = null;
+    if (pendienteOtra) { pendienteOtra = false; programar(); }
+  });
+  return enCurso;
+}
+
+function programar() {
+  clearTimeout(temporizador);
+  temporizador = setTimeout(() => sincronizar().catch(() => {}), ESPERA);
+  temporizador.unref?.();
+}
+
+function arrancar() {
+  programar();
+  setInterval(() => sincronizar().catch(() => {}), CADA).unref?.();
+}
+
+async function estado() {
+  const c = await conexion();
+  return { configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima };
+}
+
+module.exports = { arrancar, programar, sincronizar, estado, guardarConexion, trabajosPendientes, elementosParaSindri };
