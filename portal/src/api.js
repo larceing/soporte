@@ -7,6 +7,7 @@ const { documentoHtml } = require('./documento-html');
 const resumen = require('./resumen');
 const correo = require('./correo');
 const pdf = require('./pdf');
+const sindri = require('./sindri');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
 const router = express.Router();
@@ -20,6 +21,13 @@ async function cronometroDe(usuarioId) {
   );
   return filas[0] || null;
 }
+
+// Cualquier cambio en el portal puede cambiar lo pendiente de cobrar: Sindri se pone al día
+// unos segundos después (src/sindri.js).
+router.use((req, res, next) => {
+  if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) sindri.programar(); });
+  next();
+});
 
 const elegibles = lista => lista.filter(x => x.elegible).map(x => x.nombre);
 
@@ -150,6 +158,12 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
   if (b.limite !== undefined) {
     if (b.limite && !esDia(b.limite)) throw new ErrorUsuario('Fecha límite no válida.');
     cambios.limite = b.limite || '';
+  }
+  // El artículo de Sindri con que se factura; vacío, el que se deduce del título.
+  if (b.servicio !== undefined) {
+    const sku = String(b.servicio || '').trim();
+    if (sku && !/^[A-Za-z0-9._-]{1,40}$/.test(sku)) throw new ErrorUsuario('Servicio no válido.');
+    cambios.servicio = sku;
   }
 
   // No se resuelve ni se cierra con el cronómetro en marcha sobre ella.
@@ -373,17 +387,31 @@ router.post('/clientes', ruta(async (req, res) => {
 router.get('/exportar-sindri', ruta(async (req, res) => {
   const { datosParaSindri } = require('./exportar-sindri');
   const clientes = await consulta('SELECT * FROM ha_cliente ORDER BY nombre');
-  const ocupados = await fact.trabajosOcupados();
-  const trabajos = (await consulta(
-    `SELECT t.id, t.codigo, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
-            i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo
-       FROM ha_trabajo t LEFT JOIN ha_incidencia i ON i.id = t.incidencia_id
-      WHERE t.estado = 'CERRADA' AND t.pago_id IS NULL
-      ORDER BY t.dia, t.id`
-  )).map(t => ({ ...t, ocupado: ocupados.has(Number(t.id)) }));
+  const trabajos = await sindri.trabajosPendientes();
   const fecha = new Date().toISOString().slice(0, 10);
   res.set('Content-Disposition', `attachment; filename="gestor-para-sindri-${fecha}.json"`);
   res.json(datosParaSindri(await fact.config(), clientes, trabajos));
+}));
+
+// Envío automático a Sindri: dónde está, su llave (nunca se devuelve) y cómo fue el último envío.
+router.get('/sindri', ruta(async (req, res) => {
+  res.json(await sindri.estado());
+}));
+
+router.put('/sindri', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await sindri.guardarConexion({ url: b.url, llave: b.llave, quitar: b.quitar === true }));
+}));
+
+// Los servicios que se pueden elegir en una incidencia: los artículos de Sindri si está
+// conectado; si no, el catálogo del gestor.
+router.get('/sindri/servicios', ruta(async (req, res) => {
+  res.json(await sindri.servicios());
+}));
+
+router.post('/sindri/enviar', ruta(async (req, res) => {
+  await sindri.sincronizar();
+  res.json(await sindri.estado());
 }));
 
 /* Trabajos y cobros */

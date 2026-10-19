@@ -488,6 +488,26 @@
           </div>
 
           <div class="panel">
+            <h3>Sindri</h3>
+            <p class="det-desc">Lo pendiente de cobrar llega solo a Sindri → Pedidos → Por facturar, con su servicio y su tarifa. Crea la llave en Sindri (Ajustes → Integraciones) con el nombre «incidencias».</p>
+
+            <div class="grid" id="sindriCampos">
+              <div class="field"><label for="sindriUrl">Dirección de Sindri</label><input id="sindriUrl" type="url" placeholder="http://sindri-&lt;entorno&gt;:8000"></div>
+              <div class="field"><label for="sindriLlave">Llave de integración</label><input id="sindriLlave" type="password" autocomplete="off" placeholder="sdi_…"></div>
+            </div>
+
+            <p id="sindriEstado" class="det-desc" style="margin-top:12px"></p>
+
+            <div class="actions">
+              <button type="button" class="btn btn-primary" id="sindriGuardarBtn" onclick="sindriGuardar()">Guardar</button>
+              <button type="button" class="btn btn-secondary" onclick="sindriEnviar()">Enviar ahora</button>
+              <button type="button" class="btn btn-secondary" id="sindriQuitarBtn" onclick="sindriQuitar()">Quitar la llave</button>
+            </div>
+
+            <div id="mensajeSindri" class="message hidden"></div>
+          </div>
+
+          <div class="panel">
             <h3>Correo y avisos</h3>
 
             <div class="grid">

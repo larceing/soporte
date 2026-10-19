@@ -189,7 +189,11 @@ const TABLAS = [
      antes TEXT NOT NULL,
      despues TEXT NOT NULL,
      INDEX idx_ha_cambio_incidencia (incidencia_id)
-   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // Sindri: el servicio (artículo) con que se factura una incidencia (vacío = el que se deduce
+  // del título) y el pedido de Sindri en que está ya cada trabajo.
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS servicio_sku VARCHAR(40) NULL`,
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_pedido VARCHAR(40) NULL`
 ];
 
 async function migrar() {

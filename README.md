@@ -204,8 +204,11 @@ En **Ajustes**, «Descargar para Sindri» da un `.json` con:
 
 - el emisor y los clientes (con su contacto y su **tarifa por hora**, que en Sindri queda como tarifa
   propia del cliente; el descuento se pone en su ficha de Sindri);
-- los **servicios como artículos**: `SOP-INC` (incidencias), `SOP-PET` (peticiones), `HORA` (horas
-  sin incidencia), todos por horas con la tarifa general, y `SOP-CARGO` para los cobros sueltos;
+- los **servicios como artículos**: el catálogo de `portal/src/servicios.js` (Power BI, gateway,
+  recargas, IA, Azure, CI/CD, Microsoft 365, migración de ERP…), todos por horas con la tarifa
+  general, y `SOP-CARGO` para los cobros sueltos. Cada trabajo va al primer servicio cuyas palabras
+  salen en el título de su incidencia o en su concepto; si ninguno encaja, a desarrollos
+  (peticiones) o resolución de incidencias;
 - lo **pendiente de cobrar** (cerrado, sin cobro y fuera de proformas y facturas): cada trabajo con
   sus horas como cantidad y la tarifa del momento como precio. En Sindri queda en **Pedidos → Por
   facturar**. Lo cobrado, lo facturado y lo marcado «No se cobra» no viaja.
@@ -214,6 +217,24 @@ En Sindri se importa en **Empresa → Llevar y traer datos**: primero enseña qu
 lo que queda por facturar, y no guarda nada hasta pulsar «Importar». No borra nada y, si se repite,
 actualiza en vez de duplicar (clientes por NIF, artículos por referencia, trabajos por su código).
 Las incidencias y los documentos siguen en el gestor.
+
+### Envío automático
+
+Con la conexión puesta, lo pendiente de cobrar llega solo a **Por facturar** de Sindri, unos
+segundos después de cada cambio en el portal y cada 10 minutos (`portal/src/sindri.js`). Cada envío
+manda todo lo pendiente: Sindri actualiza lo que sigue pendiente allí y no toca lo que ya está en un
+pedido. Lo que aquí deja de estar pendiente (reabierto, «No se cobra», cobrado) se retira de Sindri
+si allí sigue pendiente. No crea pedidos ni facturas: eso se hace en Sindri.
+
+1. En Sindri, **Ajustes → Integraciones**: crear una llave llamada `incidencias` (el mismo origen que
+   el fichero, para que lo importado y lo enviado sean lo mismo).
+2. En el portal, **Ajustes → Sindri**: la dirección de Sindri (por dentro, `http://sindri-<entorno>:8000`)
+   y la llave. La llave no vuelve nunca al navegador. También pueden ir como `SINDRI_URL` y
+   `SINDRI_LLAVE` en el `app.env`, y entonces mandan esas.
+
+Antes hay que importar una vez el fichero, que crea en Sindri los clientes y los servicios: la API
+de integración no los crea. Un trabajo de un cliente o servicio que Sindri no tiene se queda fuera
+y Ajustes → Sindri lo dice.
 
 ## Pruebas de casuística
 

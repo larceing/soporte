@@ -23,7 +23,7 @@ function hoyIso() {
 }
 
 function badgeSituacion(situacion) {
-  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral' }[situacion.clave];
+  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral', SINDRI: 'badge-run' }[situacion.clave];
   return '<span class="badge ' + (clase || 'badge-neutral') + '">' + esc(situacion.texto) + '</span>';
 }
 
@@ -564,6 +564,8 @@ async function ajustesCargar() {
     ? 'Se usa para recuperar la contraseña, avisarte de cada inicio de sesión y enviarte el resumen el día 1 de cada mes.'
     : 'El envío de correo no está configurado en este servidor: no se enviará nada.';
 
+  sindriCargar();
+
   Object.keys(cfg).forEach(function(clave) {
     const campo = document.getElementById('cfg_' + clave);
     if (campo) campo.value = cfg[clave];
@@ -604,6 +606,63 @@ async function clienteGuardar() {
     coreMensaje('mensajeAjustes', err.message, 'error');
   }
   window.scrollTo(0, 0);
+}
+
+/* Sindri */
+
+function sindriPintar(e) {
+  const fecha = function(iso) { return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }); };
+  const desdeEntorno = e.desde === 'entorno';
+  document.getElementById('sindriCampos').classList.toggle('hidden', desdeEntorno);
+  document.getElementById('sindriGuardarBtn').classList.toggle('hidden', desdeEntorno);
+  document.getElementById('sindriQuitarBtn').classList.toggle('hidden', desdeEntorno || !e.configurado);
+  document.getElementById('sindriUrl').value = e.url || '';
+  document.getElementById('sindriLlave').value = '';
+  document.getElementById('sindriLlave').placeholder = e.configurado ? 'Guardada (escribe otra para cambiarla)' : 'sdi_…';
+  const u = e.ultima;
+  let t;
+  if (!e.configurado) t = 'Sin conectar: no se envía nada.';
+  else if (!u) t = 'Conectado' + (desdeEntorno ? ' (lo pone el servidor)' : '') + '. El primer envío sale en unos segundos.';
+  else if (!u.ok) t = 'Último intento, ' + fecha(u.cuando) + ': ' + u.error;
+  else {
+    t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + u.pendientes + ' pendientes (' +
+      u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.en_pedido + ' ya en pedido, ' + u.retirados + ' retirados).';
+    if (u.errores.length) t += ' No han entrado ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
+    if (u.aviso) t += ' ' + u.aviso;
+  }
+  document.getElementById('sindriEstado').textContent = t;
+}
+
+async function sindriCargar() {
+  try { sindriPintar(await api('GET', '/sindri')); } catch (err) { coreMensaje('mensajeSindri', err.message, 'error'); }
+}
+
+async function sindriGuardar() {
+  try {
+    sindriPintar(await api('PUT', '/sindri', { url: document.getElementById('sindriUrl').value, llave: document.getElementById('sindriLlave').value }));
+    coreMensaje('mensajeSindri', 'Guardado. El envío sale en unos segundos.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeSindri', err.message, 'error');
+  }
+}
+
+async function sindriEnviar() {
+  coreMensaje('mensajeSindri', 'Enviando...', 'info');
+  try {
+    sindriPintar(await api('POST', '/sindri/enviar', {}));
+    document.getElementById('mensajeSindri').classList.add('hidden');
+  } catch (err) {
+    coreMensaje('mensajeSindri', err.message, 'error');
+  }
+}
+
+async function sindriQuitar() {
+  try {
+    sindriPintar(await api('PUT', '/sindri', { quitar: true }));
+    coreMensaje('mensajeSindri', 'Llave quitada: ya no se envía nada.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeSindri', err.message, 'error');
+  }
 }
 
 async function cuentaGuardarEmail() {

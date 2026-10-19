@@ -1,5 +1,6 @@
 let incidencias = [];
 let catalogo = { tipos: [], estados: [], prioridades: [] };
+let serviciosSindri = null;
 let cronometro = null;
 let cronoIntervalo = null;
 let detalleActual = null;
@@ -443,6 +444,7 @@ function detalleCambiarTab(tab) {
 
 function detallePintar(inc) {
   detalleActual = inc;
+  serviciosCargar();
   const enCurso = cronometro && Number(cronometro.incidenciaId) === Number(inc.id);
   const pestanas = [
     ['seguimiento', 'Seguimiento'],
@@ -495,6 +497,7 @@ function tabSeguimiento(inc) {
       '<div class="field"><label for="segPrioridad">Prioridad</label><select id="segPrioridad">' + opciones(elegibles(catalogo.prioridades, inc.prioridad), inc.prioridad) + '</select></div>' +
       '<div class="field"><label for="segLimite">Fecha límite</label><input id="segLimite" type="date" value="' + esc(inc.limite) + '"></div>' +
       '<div class="field"><label for="segTipo">Tipo</label><select id="segTipo">' + opciones(catalogo.tipos, inc.tipo) + '</select></div>' +
+      '<div class="field"><label for="segServicio">Servicio para Sindri</label><select id="segServicio">' + opcionesServicio(inc) + '</select></div>' +
       '<div class="field field-full"><label for="segTitulo">Título</label><input id="segTitulo" type="text" maxlength="120" value="' + esc(inc.titulo) + '"></div>' +
       '<div class="field field-full"><label for="segDescripcion">Descripción</label><textarea id="segDescripcion" class="alto">' + esc(inc.descripcion) + '</textarea></div>' +
     '</div>' +
@@ -609,6 +612,28 @@ async function detalleReabrir() {
   }
 }
 
+// El artículo de Sindri con que se factura: vacío es el que se deduce del título.
+function opcionesServicio(inc) {
+  const lista = (serviciosSindri && serviciosSindri.servicios) || [];
+  const nombre = function(sku) { const s = lista.find(function(x) { return x.sku === sku; }); return s ? s.name : sku; };
+  const otras = lista.slice();
+  if (inc.servicio && !otras.some(function(s) { return s.sku === inc.servicio; })) otras.unshift({ sku: inc.servicio, name: inc.servicio });
+  return '<option value="">Automático: ' + esc(nombre(inc.servicioAuto)) + '</option>' + otras.map(function(s) {
+    return '<option value="' + esc(s.sku) + '"' + (s.sku === inc.servicio ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+  }).join('');
+}
+
+async function serviciosCargar() {
+  if (serviciosSindri) return;
+  try {
+    serviciosSindri = await api('GET', '/sindri/servicios');
+    const campo = document.getElementById('segServicio');
+    if (campo && detalleActual) campo.innerHTML = opcionesServicio(detalleActual);
+  } catch (err) {
+    // Sin la lista se elige igual el automático.
+  }
+}
+
 async function detalleGuardar() {
   const inc = detalleActual;
   const estado = document.getElementById('segEstado').value;
@@ -622,6 +647,7 @@ async function detalleGuardar() {
       prioridad: document.getElementById('segPrioridad').value,
       limite: document.getElementById('segLimite').value,
       tipo: document.getElementById('segTipo').value,
+      servicio: document.getElementById('segServicio').value,
       titulo: document.getElementById('segTitulo').value,
       descripcion: document.getElementById('segDescripcion').value
     }));

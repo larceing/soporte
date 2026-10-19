@@ -2,6 +2,7 @@
 //   node portal/tests/exportar-sindri.js
 const assert = require('assert');
 const { datosParaSindri } = require('../src/exportar-sindri');
+const { SERVICIOS, servicioDe } = require('../src/servicios');
 
 const cfg = { TARIFA_HORA: '15,5', IVA: '0', IRPF: '15', MONEDA: '€', EMISOR_NOMBRE: 'Emisor', EMISOR_NIF: '12345678Z', EMISOR_DIRECCION: 'Calle 1' };
 const clientes = [
@@ -29,18 +30,33 @@ assert.strictEqual(d.clientes[0].name, 'Corto Largo SL');
 assert.strictEqual(d.clientes[0].trade_name, 'Corto');
 assert.strictEqual(d.clientes[0].withholding_rate, '15');
 assert.deepStrictEqual(d.clientes[0].contactos, [{ name: 'Ana', email: 'a@b.c', phone: '600' }]);
-assert.deepStrictEqual(d.clientes[0].tarifas, [{ sku: 'SOP-INC', precio: '20' }, { sku: 'SOP-PET', precio: '20' }, { sku: 'HORA', precio: '20' }]);
+assert.strictEqual(d.clientes[0].tarifas.length, SERVICIOS.length);
+assert.ok(d.clientes[0].tarifas.every(t => t.precio === '20'));
 assert.strictEqual(d.clientes[1].tax_id, null);
 assert.strictEqual(d.clientes[1].archived, true);
 assert.deepStrictEqual(d.clientes[1].tarifas, []);
 
-// Los servicios como artículos: por horas con la tarifa general y otros cargos sin precio.
-assert.deepStrictEqual(d.productos.map(p => [p.sku, p.uom, p.sale_price, p.vat_rate]),
-  [['SOP-INC', 'h', '15.5', '0'], ['SOP-PET', 'h', '15.5', '0'], ['HORA', 'h', '15.5', '0'], ['SOP-CARGO', 'ud', undefined, '0']]);
+// El catálogo de servicios como artículos: por horas con la tarifa general, y los cargos sin precio.
+assert.strictEqual(d.productos.length, SERVICIOS.length + 1);
+assert.ok(d.productos.slice(0, -1).every(p => p.uom === 'h' && p.sale_price === '15.5' && p.vat_rate === '0'));
+assert.deepStrictEqual(d.productos.at(-1), { sku: 'SOP-CARGO', name: 'Gastos repercutidos y licencias', kind: 'service', uom: 'ud', vat_rate: '0' });
+assert.strictEqual(new Set(d.productos.map(p => p.sku)).size, d.productos.length);
+
+// Cada trabajo a su servicio por lo que dice; si nada encaja, por su tipo.
+const sku = (titulo, tipo = 'Petición') => servicioDe(titulo, tipo).sku;
+assert.strictEqual(sku('Gateway: revisión de versión, credenciales y recargas'), 'SOP-BI-GW');
+assert.strictEqual(sku('Informe Cobros: revisión de recarga fallida'), 'SOP-BI-REC');
+assert.strictEqual(sku('Informe Susana: cálculo de stock'), 'SOP-BI-INF');
+assert.strictEqual(sku('Copia BD A3ERP y plan de migración Power BI'), 'SOP-ERP-MIG');
+assert.strictEqual(sku('Lin-AI: conexión a datos reales y demo para Susana'), 'SOP-IA-DES');
+assert.strictEqual(sku('Consulta de seguridad: smishing'), 'SOP-SEG');
+assert.strictEqual(sku('Algo que no encaja'), 'SOP-DES');
+assert.strictEqual(sku('Algo que no encaja', 'Incidencia'), 'SOP-INC');
+assert.strictEqual(sku('Algo que no encaja', null), 'HORA');
 
 // Solo lo pendiente de cobrar, con las horas como cantidad y la tarifa del momento.
 assert.deepStrictEqual(d.por_facturar.map(p => [p.ref, p.sku, p.cantidad, p.precio]),
-  [['SES-1', 'SOP-INC', '2', '20'], ['SES-2', 'SOP-PET', '1.5', '20'], ['SES-3', 'HORA', '1', '20'], ['COB-1', 'SOP-CARGO', '1', '12.3']]);
+  [['SES-1', 'SOP-USR', '2', '20'], ['SES-2', 'SOP-BI-INF', '1.5', '20'], ['SES-3', 'HORA', '1', '20'], ['COB-1', 'SOP-CARGO', '1', '12.3']]);
 assert.deepStrictEqual(d.por_facturar[0].cliente, { tax_id: 'B91234567', name: 'Corto Largo SL' });
 assert.strictEqual(d.por_facturar[0].descripcion, 'INC_X_1 Impresora · Revisar');
 assert.strictEqual(d.por_facturar[0].fecha, '2026-10-01');
@@ -50,5 +66,9 @@ const sin = datosParaSindri({ TARIFA_HORA: '15', IVA: '7' }, []);
 assert.strictEqual(sin.empresa, undefined);
 assert.strictEqual(sin.productos[0].vat_rate, '21');
 assert.deepStrictEqual(sin.por_facturar, []);
+
+// El servicio elegido en la incidencia manda sobre el que se deduce del título.
+const elegido = datosParaSindri(cfg, clientes, [{ ...trabajos[0], incidencia_servicio: 'SOP-FORM' }]);
+assert.strictEqual(elegido.por_facturar[0].sku, 'SOP-FORM');
 
 console.log('exportar-sindri: bien');
