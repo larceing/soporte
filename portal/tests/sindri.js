@@ -17,6 +17,8 @@ async function consulta(sql, p = []) {
   if (/FROM ha_cliente/.test(sql)) return clientes;
   if (/FROM ha_documento/.test(sql)) return [];
   if (/FROM ha_trabajo/.test(sql)) return trabajos.filter(t => t.estado === 'CERRADA' && !t.pago_id);
+  if (/UPDATE ha_trabajo SET sindri_pedido = \? WHERE codigo/.test(sql)) { trabajos.filter(t => t.codigo === p[1]).forEach(t => { t.sindri_pedido = p[0]; }); return []; }
+  if (/UPDATE ha_trabajo SET sindri_pedido = NULL/.test(sql)) { trabajos.filter(t => !(p[0] || []).includes(t.codigo)).forEach(t => { t.sindri_pedido = null; }); return []; }
   throw new Error('Consulta no prevista: ' + sql);
 }
 require.cache[path.join(__dirname, '../src/db.js')] = { id: 'db', loaded: true, exports: { consulta } };
@@ -40,13 +42,14 @@ const servidor = http.createServer((req, res) => {
       const out = JSON.parse(cuerpo).elementos.map(e => {
         if (e.producto === 'NO-EXISTE') return { ref: e.ref, estado: 'error', error: 'No hay producto' };
         const antes = enSindri.get(e.ref);
-        if (antes && antes.estado !== 'pendiente') return { ref: e.ref, estado: 'en_pedido' };
+        if (antes && antes.estado !== 'pendiente') return { ref: e.ref, estado: 'en_pedido', pedido: antes.pedido };
         enSindri.set(e.ref, { ...e, estado: 'pendiente' });
         return { ref: e.ref, estado: antes ? 'actualizado' : 'creado' };
       });
       return responder(200, { elementos: out });
     }
-    if (u === '/por-facturar') return responder(200, [...enSindri.values()].map(e => ({ ref: e.ref, estado: e.estado })));
+    if (u === '/por-facturar') return responder(200, [...enSindri.values()].map(e => ({ ref: e.ref, estado: e.estado, pedido: e.pedido || null })));
+    if (u === '/productos') return responder(200, [{ sku: 'MIO', name: 'Mi servicio', kind: 'service', uom: 'h' }, { sku: 'CAJA', name: 'Caja', kind: 'stockable', uom: 'ud' }]);
     if (req.method === 'DELETE') { enSindri.delete(decodeURIComponent(u.split('/').pop())); return responder(200, { ok: true }); }
     responder(404, {});
   });
@@ -109,9 +112,27 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(r.errores.map(e => e.ref), ['SES-4']);
 
+  // El servicio elegido en la incidencia manda sobre el deducido.
+  trabajos[0].incidencia_servicio = 'MIO';
+  await sindri.sincronizar();
+  assert.strictEqual(enSindri.get('SES-1').producto, 'MIO');
+
+  // Lo que está en un pedido de Sindri queda marcado aquí con su número, y se desmarca si vuelve.
+  assert.ok(!trabajos[2].sindri_pedido);
+  enSindri.get('COB-1').pedido = 'PV-0001';
+  await sindri.sincronizar();
+  assert.strictEqual(trabajos[2].sindri_pedido, 'PV-0001');
+  enSindri.get('COB-1').estado = 'pendiente';
+  await sindri.sincronizar();
+  assert.strictEqual(trabajos[2].sindri_pedido, null);
+
+  // Para elegir: los servicios por horas de Sindri.
+  assert.deepStrictEqual(await sindri.servicios(), { desde: 'sindri', servicios: [{ sku: 'MIO', name: 'Mi servicio' }] });
+
   // Quitar la llave apaga el envío.
   await sindri.guardarConexion({ quitar: true });
   assert.strictEqual((await sindri.estado()).configurado, false);
+  assert.strictEqual((await sindri.servicios()).desde, 'gestor');
 
   servidor.close();
   console.log('sindri: bien');

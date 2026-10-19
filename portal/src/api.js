@@ -159,6 +159,12 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
     if (b.limite && !esDia(b.limite)) throw new ErrorUsuario('Fecha límite no válida.');
     cambios.limite = b.limite || '';
   }
+  // El artículo de Sindri con que se factura; vacío, el que se deduce del título.
+  if (b.servicio !== undefined) {
+    const sku = String(b.servicio || '').trim();
+    if (sku && !/^[A-Za-z0-9._-]{1,40}$/.test(sku)) throw new ErrorUsuario('Servicio no válido.');
+    cambios.servicio = sku;
+  }
 
   // No se resuelve ni se cierra con el cronómetro en marcha sobre ella.
   if (cambios.estado === 'resolved' || cambios.estado === 'closed') {
@@ -395,6 +401,12 @@ router.get('/sindri', ruta(async (req, res) => {
 router.put('/sindri', ruta(async (req, res) => {
   const b = req.body || {};
   res.json(await sindri.guardarConexion({ url: b.url, llave: b.llave, quitar: b.quitar === true }));
+}));
+
+// Los servicios que se pueden elegir en una incidencia: los artículos de Sindri si está
+// conectado; si no, el catálogo del gestor.
+router.get('/sindri/servicios', ruta(async (req, res) => {
+  res.json(await sindri.servicios());
 }));
 
 router.post('/sindri/enviar', ruta(async (req, res) => {

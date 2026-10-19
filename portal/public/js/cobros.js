@@ -23,7 +23,7 @@ function hoyIso() {
 }
 
 function badgeSituacion(situacion) {
-  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral' }[situacion.clave];
+  const clase = { COBRADO: 'badge-ok', FACTURADO: 'badge-run', PROFORMA: 'badge-pend', PENDIENTE: 'badge-pend', NO_COBRAR: 'badge-neutral', SINDRI: 'badge-run' }[situacion.clave];
   return '<span class="badge ' + (clase || 'badge-neutral') + '">' + esc(situacion.texto) + '</span>';
 }
 

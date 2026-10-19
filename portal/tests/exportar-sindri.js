@@ -67,4 +67,8 @@ assert.strictEqual(sin.empresa, undefined);
 assert.strictEqual(sin.productos[0].vat_rate, '21');
 assert.deepStrictEqual(sin.por_facturar, []);
 
+// El servicio elegido en la incidencia manda sobre el que se deduce del título.
+const elegido = datosParaSindri(cfg, clientes, [{ ...trabajos[0], incidencia_servicio: 'SOP-FORM' }]);
+assert.strictEqual(elegido.por_facturar[0].sku, 'SOP-FORM');
+
 console.log('exportar-sindri: bien');

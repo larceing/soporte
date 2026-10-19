@@ -5,6 +5,7 @@
 // el resto del portal no cambia.
 
 const { consulta, pool } = require('./db');
+const { servicioDe } = require('./servicios');
 
 const PROYECTO = process.env.PROYECTO || process.env.MANTIS_PROJECT || 'SPSIL';
 
@@ -80,6 +81,8 @@ function base(fila) {
     prioridad: fila.prioridad,
     prioridadTexto: textoDe(PRIORIDADES, fila.prioridad),
     limite: fila.limite || '',
+    servicio: fila.servicio_sku || '',
+    servicioAuto: servicioDe(fila.titulo, fila.tipo).sku,
     creada: iso(fila.creada),
     actualizada: iso(fila.actualizada),
     minutos: Number(fila.minutos) || 0
@@ -183,6 +186,10 @@ async function actualizar(id, cambios) {
   if (cambia('limite')) {
     campos.push(['limite', cambios.limite || null]);
     historial.push(['Fecha límite', diaLegible(actual.limite), diaLegible(cambios.limite) || 'Sin fecha']);
+  }
+  if (cambia('servicio')) {
+    campos.push(['servicio_sku', cambios.servicio || null]);
+    historial.push(['Servicio', actual.servicio || 'Automático', cambios.servicio || 'Automático']);
   }
   if (cambia('estado')) {
     campos.push(['estado', cambios.estado]);

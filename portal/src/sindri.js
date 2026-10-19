@@ -13,6 +13,7 @@
 const { consulta } = require('./db');
 const fact = require('./facturacion');
 const { datosParaSindri } = require('./exportar-sindri');
+const { SERVICIOS } = require('./servicios');
 
 const ESPERA = 5000;
 const CADA = 10 * 60 * 1000;
@@ -80,7 +81,7 @@ async function trabajosPendientes() {
   const ocupados = await fact.trabajosOcupados();
   return (await consulta(
     `SELECT t.id, t.codigo, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
-            i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo
+            i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo, i.servicio_sku AS incidencia_servicio
        FROM ha_trabajo t LEFT JOIN ha_incidencia i ON i.id = t.incidencia_id
       WHERE t.estado = 'CERRADA' AND t.pago_id IS NULL
       ORDER BY t.dia, t.id`
@@ -103,6 +104,40 @@ function elementosParaSindri(porFacturar, clientesSindri) {
     elementos.push({ ref: p.ref, cliente: id, producto: p.sku, fecha: p.fecha, cantidad: p.cantidad, precio: p.precio, descripcion: p.descripcion });
   }
   return { elementos, sinCliente };
+}
+
+// Cada trabajo sabe si ya está en un pedido de Sindri (y en cuál): así no se cobra también aquí.
+// Sindri da como mucho 2000 referencias; si llega al tope no se borra ninguna marca.
+async function anotarPedidos(enSindri) {
+  const enPedido = enSindri.filter(e => e.estado === 'en_pedido' && e.pedido);
+  for (const e of enPedido) {
+    await consulta('UPDATE ha_trabajo SET sindri_pedido = ? WHERE codigo = ? AND NOT (sindri_pedido <=> ?)', [String(e.pedido).slice(0, 40), e.ref, String(e.pedido).slice(0, 40)]);
+  }
+  if (enSindri.length >= 2000) return;
+  const refs = enPedido.map(e => e.ref);
+  await consulta(
+    'UPDATE ha_trabajo SET sindri_pedido = NULL WHERE sindri_pedido IS NOT NULL' + (refs.length ? ' AND codigo NOT IN (?)' : ''),
+    refs.length ? [refs] : []
+  );
+}
+
+let servCache = null;
+
+// Los servicios que se pueden elegir en una incidencia.
+async function servicios() {
+  const c = await conexion();
+  if (c.url && c.llave) {
+    if (servCache && servCache.hasta > Date.now() && servCache.url === c.url) return servCache.datos;
+    try {
+      const productos = await llamar(c, 'GET', '/productos');
+      const datos = { desde: 'sindri', servicios: productos.filter(p => p.kind === 'service' && p.uom === 'h').map(p => ({ sku: p.sku, name: p.name })) };
+      servCache = { url: c.url, hasta: Date.now() + 5 * 60 * 1000, datos };
+      return datos;
+    } catch (e) {
+      // Sin Sindri a mano, el catálogo propio.
+    }
+  }
+  return { desde: 'gestor', servicios: SERVICIOS.map(s => ({ sku: s.sku, name: s.name })) };
 }
 
 async function enviar() {
@@ -129,6 +164,7 @@ async function enviar() {
     // cobrado aquí...) se retira. Lo que ya está en un pedido de Sindri no se toca.
     const aqui = new Set(por_facturar.map(p => p.ref));
     const enSindri = await llamar(c, 'GET', '/por-facturar');
+    await anotarPedidos(enSindri);
     for (const e of enSindri) {
       if (e.estado !== 'pendiente' || aqui.has(e.ref)) continue;
       try {
@@ -177,4 +213,4 @@ async function estado() {
   return { configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima };
 }
 
-module.exports = { arrancar, programar, sincronizar, estado, guardarConexion, trabajosPendientes, elementosParaSindri };
+module.exports = { servicios, arrancar, programar, sincronizar, estado, guardarConexion, trabajosPendientes, elementosParaSindri };

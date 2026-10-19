@@ -67,7 +67,7 @@ function datosParaSindri(cfg, clientes, trabajos = []) {
       return [{
         ref: t.codigo,
         cliente: { tax_id: c.nif || null, name: nombreDe(c) },
-        sku: deTiempo ? servicioDe(`${t.incidencia_titulo || ''} ${t.concepto || ''}`, t.incidencia_tipo).sku : CARGO.sku,
+        sku: deTiempo ? (t.incidencia_servicio || servicioDe(`${t.incidencia_titulo || ''} ${t.concepto || ''}`, t.incidencia_tipo).sku) : CARGO.sku,
         fecha: dia(t.dia),
         cantidad: texto(cantidad),
         precio: texto(numero(deTiempo ? t.tarifa : t.importe) || 0),
