@@ -30,11 +30,11 @@ jobs:
             node --check "$f"
           done
       - name: prefijo de ruta, Keycloak y Sindri
-        run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/exportar-sindri.js && node portal/tests/sindri.js
+        run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/exportar-sindri.js && node portal/tests/sindri.js && node portal/tests/tareas.js
       - name: la imagen se construye y arranca el código
         run: |
           docker build -t portal-prueba portal
-          docker run --rm portal-prueba node -e "require('./src/api'); require('./src/resumen'); require('./src/sindri')"
+          docker run --rm portal-prueba node -e "require('./src/api'); require('./src/resumen'); require('./src/sindri'); require('./src/tareas')"
       - name: script del servidor
         run: bash -n scripts/instalar-servidor.sh
       - name: los compose se entienden

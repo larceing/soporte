@@ -6,6 +6,7 @@ const auth = require('./auth');
 const resumen = require('./resumen');
 const correo = require('./correo');
 const sindri = require('./sindri');
+const tareas = require('./tareas');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
 const router = express.Router();
@@ -20,10 +21,10 @@ async function cronometroDe(usuarioId) {
   return filas[0] || null;
 }
 
-// Cualquier cambio en el portal puede cambiar lo pendiente de facturar: Sindri se pone al día
-// unos segundos después (src/sindri.js).
+// Cualquier cambio en el portal puede cambiar lo pendiente de facturar o las incidencias: Sindri y
+// Tareas se ponen al día unos segundos después (src/sindri.js, src/tareas.js).
 router.use((req, res, next) => {
-  if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) sindri.programar(); });
+  if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) { sindri.programar(); tareas.programar(); } });
   next();
 });
 
@@ -381,6 +382,21 @@ router.get('/sindri/servicios', ruta(async (req, res) => {
 router.post('/sindri/enviar', ruta(async (req, res) => {
   await sindri.sincronizar();
   res.json(await sindri.estado());
+}));
+
+// Tareas: dónde está, su llave (nunca se devuelve), el proyecto y cómo fue el último envío.
+router.get('/tareas', ruta(async (req, res) => {
+  res.json(await tareas.estado());
+}));
+
+router.put('/tareas', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await tareas.guardarConexion({ url: b.url, llave: b.llave, proyecto: b.proyecto, quitar: b.quitar === true }));
+}));
+
+router.post('/tareas/enviar', ruta(async (req, res) => {
+  await tareas.sincronizar();
+  res.json(await tareas.estado());
 }));
 
 /* Horas: sesiones de trabajo y gastos */

@@ -19,8 +19,8 @@ const CONFIG_DEFECTO = {
 async function config() {
   const filas = await consulta('SELECT clave, valor FROM ha_config');
   const mapa = { ...CONFIG_DEFECTO };
-  // La conexión con Sindri (su llave) no sale de aquí: la lleva src/sindri.js.
-  filas.forEach(f => { if (!f.clave.startsWith('SINDRI_')) mapa[f.clave] = f.valor; });
+  // Las conexiones con Sindri y Tareas (sus llaves) no salen de aquí: src/sindri.js y src/tareas.js.
+  filas.forEach(f => { if (!f.clave.startsWith('SINDRI_') && !f.clave.startsWith('TAREAS_')) mapa[f.clave] = f.valor; });
   return mapa;
 }
 

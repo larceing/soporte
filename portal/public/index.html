@@ -356,7 +356,7 @@
 
           <div class="panel">
             <h3>Sindri</h3>
-            <p class="det-desc">Lo pendiente de facturar llega solo a Sindri → Pedidos → Por facturar, con su servicio y su tarifa. Crea la llave en Sindri (Ajustes → Integraciones) con el nombre «incidencias».</p>
+            <p class="det-desc">Lo pendiente de facturar llega solo a Sindri → Pedidos → Por facturar, con su servicio y su tarifa. Crea la llave en Sindri (Empresa → Integraciones) con el nombre «incidencias».</p>
 
             <div class="grid" id="sindriCampos">
               <div class="field"><label for="sindriUrl">Dirección de Sindri</label><input id="sindriUrl" type="url" placeholder="http://sindri-&lt;entorno&gt;:8000"></div>
@@ -372,6 +372,27 @@
             </div>
 
             <div id="mensajeSindri" class="message hidden"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Tareas</h3>
+            <p class="det-desc">Cada incidencia abierta tiene su tarea en el gestor de tareas, sola: se crea, se mantiene al día y pasa a hechas al resolverla. Crea la llave en Tareas (Configuración → API).</p>
+
+            <div class="grid" id="tareasCampos">
+              <div class="field"><label for="tareasUrl">Dirección de Tareas</label><input id="tareasUrl" type="url" placeholder="http://tareas-&lt;entorno&gt;:8000"></div>
+              <div class="field"><label for="tareasLlave">Llave de la API</label><input id="tareasLlave" type="password" autocomplete="off"></div>
+              <div class="field"><label for="tareasProyecto">Proyecto donde caen</label><input id="tareasProyecto" type="text" placeholder="id del proyecto en Tareas"></div>
+            </div>
+
+            <p id="tareasEstado" class="det-desc" style="margin-top:12px"></p>
+
+            <div class="actions">
+              <button type="button" class="btn btn-primary" id="tareasGuardarBtn" onclick="tareasGuardar()">Guardar</button>
+              <button type="button" class="btn btn-secondary" onclick="tareasEnviar()">Enviar ahora</button>
+              <button type="button" class="btn btn-secondary" id="tareasQuitarBtn" onclick="tareasQuitar()">Quitar la llave</button>
+            </div>
+
+            <div id="mensajeTareas" class="message hidden"></div>
           </div>
 
           <div class="panel">
