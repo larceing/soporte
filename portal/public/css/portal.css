@@ -9,7 +9,7 @@
 .nav-brand img {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  object-fit: contain;
 }
 
 .nav-spacer {
@@ -37,7 +37,7 @@
 .login-brand img {
   width: 56px;
   height: 56px;
-  border-radius: 14px;
+  object-fit: contain;
 }
 
 .login-brand strong {
