@@ -34,9 +34,9 @@
         <span>Nueva</span>
       </button>
 
-      <button type="button" class="nav-item" data-nav="cobros sesiones pagos documentos documento" onclick="coreMostrarVista('cobros')">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M3 10h18"></path><path d="M7 15h3"></path></svg>
-        <span>Cobros</span>
+      <button type="button" class="nav-item" data-nav="sesiones" onclick="coreMostrarVista('sesiones')">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+        <span>Horas</span>
       </button>
 
       <button type="button" class="nav-item" data-nav="ajustes" onclick="coreMostrarVista('ajustes')">
@@ -178,42 +178,42 @@
           <div id="detalleContenido"><div class="empty">Cargando...</div></div>
         </section>
 
-        <section id="cobros" class="view hidden">
+        <section id="sesiones" class="view hidden">
           <header class="view-head">
-            <h2>Cobros</h2>
-            <p>Lo pendiente de un periodo: cóbralo, crea una proforma o saca un resumen de servicios.</p>
+            <h2>Horas</h2>
+            <p>Las sesiones de trabajo y los gastos, con sus horas y su tarifa. Lo pendiente llega a Sindri, donde se pasa a un pedido y se factura.</p>
           </header>
 
-          <div class="seg seg-wide cobros-seg" role="group" aria-label="Sección de cobros"></div>
-
-          <div class="panel">
-            <div class="grid grid-3">
-              <div class="field">
-                <label for="cobroDesde">Desde</label>
-                <input id="cobroDesde" type="date">
-              </div>
-
-              <div class="field">
-                <label for="cobroHasta">Hasta</label>
-                <input id="cobroHasta" type="date">
-              </div>
-
-              <div class="field field-check">
-                <label for="cobroDetalle">
-                  <input id="cobroDetalle" type="checkbox">
-                  <span>Incluir la descripción de cada trabajo en el documento</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button type="button" class="btn btn-primary" onclick="cobroCalcular()">Calcular</button>
-            </div>
-
-            <div id="mensajeCobro" class="message hidden"></div>
+          <div class="chips" role="group" aria-label="Filtrar por facturación">
+            <button type="button" class="chip" data-ses="" onclick="sesionesFiltrar('')">Todas</button>
+            <button type="button" class="chip" data-ses="PENDIENTE" onclick="sesionesFiltrar('PENDIENTE')">Pendientes</button>
+            <button type="button" class="chip" data-ses="SINDRI" onclick="sesionesFiltrar('SINDRI')">En pedido de Sindri</button>
+            <button type="button" class="chip" data-ses="NO_COBRAR" onclick="sesionesFiltrar('NO_COBRAR')">No se facturan</button>
           </div>
 
-          <div id="cobroResultado" class="cobro-result hidden"></div>
+          <div class="panel panel-filtros">
+            <div class="grid grid-3">
+              <div class="field">
+                <label for="sesBuscar">Buscar</label>
+                <input id="sesBuscar" type="search" placeholder="Concepto, detalle o código" onchange="sesionesCargar().catch(coreError)">
+              </div>
+
+              <div class="field">
+                <label for="sesDesde">Desde</label>
+                <input id="sesDesde" type="date" onchange="sesionesCargar().catch(coreError)">
+              </div>
+
+              <div class="field">
+                <label for="sesHasta">Hasta</label>
+                <input id="sesHasta" type="date" onchange="sesionesCargar().catch(coreError)">
+              </div>
+            </div>
+
+            <button type="button" class="link-btn" onclick="sesionesLimpiar()">Quitar filtros</button>
+          </div>
+
+          <div id="sesResumen"></div>
+          <div id="sesLista"><div class="empty">Cargando...</div></div>
 
           <details class="filters">
             <summary>Añadir un gasto suelto</summary>
@@ -248,112 +248,6 @@
               <div id="mensajeGasto" class="message hidden"></div>
             </div>
           </details>
-        </section>
-
-        <section id="sesiones" class="view hidden">
-          <header class="view-head">
-            <h2>Cobros</h2>
-            <p>Todas las sesiones de trabajo y gastos, con su situación de cobro.</p>
-          </header>
-
-          <div class="seg seg-wide cobros-seg" role="group" aria-label="Sección de cobros"></div>
-
-          <div class="chips" role="group" aria-label="Filtrar por cobro">
-            <button type="button" class="chip" data-ses="" onclick="sesionesFiltrar('')">Todas</button>
-            <button type="button" class="chip" data-ses="PENDIENTE" onclick="sesionesFiltrar('PENDIENTE')">Pendientes</button>
-            <button type="button" class="chip" data-ses="COBRADO" onclick="sesionesFiltrar('COBRADO')">Cobradas</button>
-            <button type="button" class="chip" data-ses="NO_COBRAR" onclick="sesionesFiltrar('NO_COBRAR')">No se cobran</button>
-          </div>
-
-          <div class="panel panel-filtros">
-            <div class="grid grid-3">
-              <div class="field">
-                <label for="sesBuscar">Buscar</label>
-                <input id="sesBuscar" type="search" placeholder="Concepto, detalle o código" onchange="sesionesCargar().catch(coreError)">
-              </div>
-
-              <div class="field">
-                <label for="sesDesde">Desde</label>
-                <input id="sesDesde" type="date" onchange="sesionesCargar().catch(coreError)">
-              </div>
-
-              <div class="field">
-                <label for="sesHasta">Hasta</label>
-                <input id="sesHasta" type="date" onchange="sesionesCargar().catch(coreError)">
-              </div>
-            </div>
-
-            <button type="button" class="link-btn" onclick="sesionesLimpiar()">Quitar filtros</button>
-          </div>
-
-          <div id="sesResumen"></div>
-          <div id="sesLista"><div class="empty">Cargando...</div></div>
-        </section>
-
-        <section id="pagos" class="view hidden">
-          <header class="view-head">
-            <h2>Cobros</h2>
-            <p>Cobros ya registrados.</p>
-          </header>
-
-          <div class="seg seg-wide cobros-seg" role="group" aria-label="Sección de cobros"></div>
-
-          <div id="pagosListado"><div class="empty">Cargando...</div></div>
-        </section>
-
-        <section id="documentos" class="view hidden">
-          <header class="view-head">
-            <h2>Cobros</h2>
-            <p>Proformas, facturas, rectificativas y resúmenes de servicios. Se crean desde Pendiente.</p>
-          </header>
-
-          <div class="seg seg-wide cobros-seg" role="group" aria-label="Sección de cobros"></div>
-
-          <div id="docResumen"></div>
-
-          <div class="chips" role="group" aria-label="Filtrar por tipo">
-            <button type="button" class="chip" data-doc-tipo="" onclick="documentosFiltrar('')">Todos</button>
-            <button type="button" class="chip" data-doc-tipo="PROFORMA" onclick="documentosFiltrar('PROFORMA')">Proformas</button>
-            <button type="button" class="chip" data-doc-tipo="FACTURA" onclick="documentosFiltrar('FACTURA')">Facturas</button>
-            <button type="button" class="chip" data-doc-tipo="RECTIFICATIVA" onclick="documentosFiltrar('RECTIFICATIVA')">Rectificativas</button>
-            <button type="button" class="chip" data-doc-tipo="RESUMEN" onclick="documentosFiltrar('RESUMEN')">Resúmenes</button>
-          </div>
-
-          <div class="panel panel-filtros">
-            <div class="grid grid-3">
-              <div class="field">
-                <label for="docBuscar">Buscar</label>
-                <input id="docBuscar" type="search" placeholder="Número o cliente" oninput="documentosLeerFiltros()">
-              </div>
-
-              <div class="field">
-                <label for="docEstado">Estado</label>
-                <select id="docEstado" onchange="documentosLeerFiltros()">
-                  <option value="">Todos los estados</option>
-                  <option value="PENDIENTE">Pendiente de confirmar</option>
-                  <option value="EMITIDA">Emitida</option>
-                  <option value="COBRADA">Cobrada</option>
-                  <option value="FACTURADA">Facturada</option>
-                  <option value="RECTIFICADA">Rectificada</option>
-                  <option value="ANULADA">Anulada</option>
-                  <option value="INFORMATIVO">Informativo</option>
-                  <option value="HISTORICO">PDF original</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="docAnio">Año</label>
-                <select id="docAnio" onchange="documentosLeerFiltros()"></select>
-              </div>
-            </div>
-          </div>
-
-          <div id="documentosListado"><div class="empty">Cargando...</div></div>
-        </section>
-
-        <section id="documento" class="view hidden">
-          <div class="seg seg-wide cobros-seg" role="group" aria-label="Sección de cobros"></div>
-          <div id="documentoContenido"><div class="empty">Cargando...</div></div>
         </section>
 
         <section id="correo" class="view hidden">
@@ -416,7 +310,7 @@
         <section id="ajustes" class="view hidden">
           <header class="view-head">
             <h2>Ajustes</h2>
-            <p>Tarifas, datos de facturación, cliente y cuenta.</p>
+            <p>Tarifa, cliente, Sindri y cuenta.</p>
           </header>
 
           <div id="mensajeAjustes" class="message hidden"></div>
@@ -431,34 +325,7 @@
               <div class="field"><label for="cfg_IVA">IVA %</label><input id="cfg_IVA" type="number" step="0.01"></div>
               <div class="field"><label for="cfg_IRPF">Retención IRPF %</label><input id="cfg_IRPF" type="number" step="0.01"></div>
             </div>
-          </div>
-
-          <div class="panel">
-            <h3>Mis datos en las facturas</h3>
-
-            <div class="grid">
-              <div class="field"><label for="cfg_EMISOR_NOMBRE">Nombre o razón social</label><input id="cfg_EMISOR_NOMBRE" type="text"></div>
-              <div class="field"><label for="cfg_EMISOR_NIF">NIF</label><input id="cfg_EMISOR_NIF" type="text"></div>
-              <div class="field field-full"><label for="cfg_EMISOR_DIRECCION">Dirección fiscal</label><textarea id="cfg_EMISOR_DIRECCION"></textarea></div>
-              <div class="field"><label for="cfg_EMISOR_EMAIL">Email</label><input id="cfg_EMISOR_EMAIL" type="email"></div>
-              <div class="field"><label for="cfg_EMISOR_TELEFONO">Teléfono</label><input id="cfg_EMISOR_TELEFONO" type="text"></div>
-              <div class="field"><label for="cfg_EMISOR_IBAN">IBAN</label><input id="cfg_EMISOR_IBAN" type="text"></div>
-              <div class="field"><label for="cfg_PAGO_CONDICIONES">Condiciones de pago</label><input id="cfg_PAGO_CONDICIONES" type="text"></div>
-              <div class="field field-full"><label for="cfg_FACTURA_MENCION">Mención legal en las facturas</label><textarea id="cfg_FACTURA_MENCION"></textarea></div>
-              <div class="field field-full"><label for="cfg_DOC_PIE">Pie del documento</label><textarea id="cfg_DOC_PIE"></textarea></div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <h3>Numeración</h3>
-
-            <div class="grid grid-3">
-              <div class="field"><label for="cfg_FACTURA_SERIE">Serie de facturas</label><input id="cfg_FACTURA_SERIE" type="text"></div>
-              <div class="field"><label for="cfg_PROFORMA_SERIE">Serie de proformas</label><input id="cfg_PROFORMA_SERIE" type="text"></div>
-              <div class="field"><label for="cfg_RECTIFICATIVA_SERIE">Serie de rectificativas</label><input id="cfg_RECTIFICATIVA_SERIE" type="text"></div>
-              <div class="field"><label for="cfg_FACTURA_INICIO_ANIO">Continuar numeración: año</label><input id="cfg_FACTURA_INICIO_ANIO" type="number" step="1"></div>
-              <div class="field"><label for="cfg_FACTURA_INICIO_NUMERO">Primer número ese año</label><input id="cfg_FACTURA_INICIO_NUMERO" type="number" step="1"></div>
-            </div>
+            <p class="det-desc">El IVA y la retención solo se usan al llevar los servicios y el cliente a Sindri.</p>
 
             <div class="actions">
               <button type="button" class="btn btn-primary" onclick="ajustesGuardar()">Guardar ajustes</button>
@@ -483,13 +350,13 @@
 
             <div class="actions">
               <button type="button" class="btn btn-primary" onclick="clienteGuardar()">Guardar cliente</button>
-              <a class="btn" href="api/exportar-sindri" download title="Emisor, clientes con su tarifa, servicios y las horas pendientes de cobrar, en un .json para importarlo en Sindri (Empresa → Llevar y traer datos)">Descargar para Sindri</a>
+              <a class="btn" href="api/exportar-sindri" download title="Emisor, clientes con su tarifa, servicios y las horas pendientes de facturar, en un .json para importarlo en Sindri (Empresa → Llevar y traer datos)">Descargar para Sindri</a>
             </div>
           </div>
 
           <div class="panel">
             <h3>Sindri</h3>
-            <p class="det-desc">Lo pendiente de cobrar llega solo a Sindri → Pedidos → Por facturar, con su servicio y su tarifa. Crea la llave en Sindri (Ajustes → Integraciones) con el nombre «incidencias».</p>
+            <p class="det-desc">Lo pendiente de facturar llega solo a Sindri → Pedidos → Por facturar, con su servicio y su tarifa. Crea la llave en Sindri (Ajustes → Integraciones) con el nombre «incidencias».</p>
 
             <div class="grid" id="sindriCampos">
               <div class="field"><label for="sindriUrl">Dirección de Sindri</label><input id="sindriUrl" type="url" placeholder="http://sindri-&lt;entorno&gt;:8000"></div>
@@ -571,25 +438,6 @@
     </div>
   </div>
 
-  <div id="dialogoAccion" class="dialog hidden">
-    <div class="dialog-box" role="dialog" aria-labelledby="dialogoAccionTitulo">
-      <h3 id="dialogoAccionTitulo"></h3>
-      <p id="dialogoAccionTexto"></p>
-
-      <div id="dialogoAccionMotivo" class="field hidden" style="margin-top:16px">
-        <label for="accionMotivo">Motivo de la rectificación</label>
-        <textarea id="accionMotivo"></textarea>
-      </div>
-
-      <div id="mensajeDialogoAccion" class="message hidden"></div>
-
-      <div class="actions">
-        <button type="button" class="btn btn-secondary" onclick="accionCerrar()">Cancelar</button>
-        <button type="button" id="dialogoAccionConfirmar" class="btn btn-primary" onclick="accionConfirmar()">Confirmar</button>
-      </div>
-    </div>
-  </div>
-
   <div id="dialogoConfirmar" class="dialog hidden">
     <div class="dialog-box" role="dialog" aria-labelledby="confirmarTitulo">
       <h3 id="confirmarTitulo"></h3>
@@ -603,7 +451,7 @@
   </div>
 
   <script src="js/correo.js"></script>
-  <script src="js/cobros.js"></script>
+  <script src="js/horas.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

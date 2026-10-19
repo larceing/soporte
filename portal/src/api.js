@@ -3,10 +3,8 @@ const { consulta } = require('./db');
 const incidencias = require('./incidencias');
 const fact = require('./facturacion');
 const auth = require('./auth');
-const { documentoHtml } = require('./documento-html');
 const resumen = require('./resumen');
 const correo = require('./correo');
-const pdf = require('./pdf');
 const sindri = require('./sindri');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
@@ -22,7 +20,7 @@ async function cronometroDe(usuarioId) {
   return filas[0] || null;
 }
 
-// Cualquier cambio en el portal puede cambiar lo pendiente de cobrar: Sindri se pone al día
+// Cualquier cambio en el portal puede cambiar lo pendiente de facturar: Sindri se pone al día
 // unos segundos después (src/sindri.js).
 router.use((req, res, next) => {
   if (req.method !== 'GET') res.on('finish', () => { if (res.statusCode < 400) sindri.programar(); });
@@ -31,7 +29,7 @@ router.use((req, res, next) => {
 
 const elegibles = lista => lista.filter(x => x.elegible).map(x => x.nombre);
 
-// La ficha lleva también sus sesiones de trabajo con la situación de cobro.
+// La ficha lleva también sus sesiones de trabajo con su situación (pendiente, en un pedido de Sindri...).
 async function conSesiones(incidencia) {
   return { ...incidencia, sesiones: await fact.trabajos({ incidenciaId: incidencia.id }) };
 }
@@ -266,27 +264,6 @@ router.post('/cronometro/descartar', ruta(async (req, res) => {
   res.json({ ok: true });
 }));
 
-/* PDF de los documentos */
-
-// Nombre de fichero sin nada raro: es lo que verá el cliente en el adjunto.
-function nombreFichero(nombre) {
-  const limpio = String(nombre || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[._]+|_+$/g, '').slice(0, 120);
-  return /\.pdf$/i.test(limpio) ? limpio : (limpio || 'documento') + '.pdf';
-}
-
-// El PDF original si es un documento histórico; si no, la página imprimible
-// convertida en PDF.
-async function pdfDelDocumento(id) {
-  const doc = await fact.documento(id);
-  if (doc.tiene_pdf) {
-    const original = await fact.documentoPdf(doc.id);
-    return { nombre: nombreFichero(original.nombre), contenido: original.contenido, doc: doc };
-  }
-  const contenido = await pdf.deHtml(documentoHtml(doc, '', { logo: pdf.logoEnLinea() }));
-  return { nombre: nombreFichero(doc.codigo), contenido: contenido, doc: doc };
-}
-
 /* Correo escrito a mano */
 
 // Valida lo que llega de la pantalla de redacción y lo deja listo para enviar.
@@ -325,16 +302,12 @@ router.post('/correo/enviar', ruta(async (req, res) => {
   // Si va ligado a una incidencia, tiene que existir antes de enviar nada.
   const incidenciaId = req.body.incidenciaId ? (await incidencias.obtener(req.body.incidenciaId)).id : null;
 
-  // Con un documento, su PDF va adjunto.
-  const adjunto = req.body.documentoId ? await pdfDelDocumento(req.body.documentoId) : null;
-  if (adjunto) c.adjuntos = [{ nombre: adjunto.nombre, contenido: Buffer.from(adjunto.contenido).toString('base64') }];
-
   const resultado = await correo.personal(c);
   if (!resultado.enviado) throw new ErrorUsuario(resultado.motivo, 502);
 
   await consulta(
-    'INSERT INTO ha_correo (usuario_id, incidencia_id, documento_id, adjunto, para, asunto, mensaje, enviado_en) VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
-    [req.usuario.id, incidenciaId, adjunto ? adjunto.doc.id : null, adjunto && !resultado.sinAdjuntos ? adjunto.nombre : '', c.para.join(', '), c.asunto, c.mensaje]
+    'INSERT INTO ha_correo (usuario_id, incidencia_id, para, asunto, mensaje, enviado_en) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())',
+    [req.usuario.id, incidenciaId, c.para.join(', '), c.asunto, c.mensaje]
   );
 
   // El correo queda anotado en la incidencia como parte de su documentación.
@@ -351,16 +324,12 @@ router.post('/correo/enviar', ruta(async (req, res) => {
     }
   }
 
-  res.status(201).json({
-    ok: true, para: c.para, anotado: anotado,
-    adjunto: adjunto && !resultado.sinAdjuntos ? adjunto.nombre : '',
-    sinAdjunto: Boolean(adjunto && resultado.sinAdjuntos)
-  });
+  res.status(201).json({ ok: true, para: c.para, anotado: anotado });
 }));
 
 router.get('/correo/enviados', ruta(async (req, res) => {
   res.json(await consulta(
-    `SELECT id, incidencia_id AS incidenciaId, documento_id AS documentoId, adjunto, para, asunto, mensaje, enviado_en AS enviadoEn
+    `SELECT id, incidencia_id AS incidenciaId, adjunto, para, asunto, mensaje, enviado_en AS enviadoEn
        FROM ha_correo ORDER BY id DESC LIMIT 100`
   ));
 }));
@@ -414,7 +383,7 @@ router.post('/sindri/enviar', ruta(async (req, res) => {
   res.json(await sindri.estado());
 }));
 
-/* Trabajos y cobros */
+/* Horas: sesiones de trabajo y gastos */
 
 router.get('/trabajos', ruta(async (req, res) => {
   res.json(await fact.trabajos(req.query));
@@ -428,66 +397,6 @@ router.post('/trabajos/gasto', ruta(async (req, res) => {
 router.post('/trabajos/:id/estado', ruta(async (req, res) => {
   await fact.trabajoEstado(req.params.id, req.body.estado);
   res.json({ ok: true });
-}));
-
-router.get('/cobros/pendiente', ruta(async (req, res) => {
-  res.json(await fact.pendiente(req.query));
-}));
-
-router.post('/cobros/cobrar', ruta(async (req, res) => {
-  await fact.cobrarPeriodo(req.body || {});
-  res.json({ ok: true });
-}));
-
-router.get('/pagos', ruta(async (req, res) => {
-  res.json(await fact.pagos());
-}));
-
-/* Proformas y facturas */
-
-router.get('/documentos', ruta(async (req, res) => {
-  res.json(await fact.documentos());
-}));
-
-router.post('/documentos/resumen', ruta(async (req, res) => {
-  res.status(201).json(await fact.resumenCrear(req.body || {}));
-}));
-
-router.post('/documentos/proforma', ruta(async (req, res) => {
-  res.status(201).json(await fact.proformaCrear(req.body || {}));
-}));
-
-router.post('/documentos/:id/anular', ruta(async (req, res) => {
-  res.json(await fact.proformaAnular(req.params.id));
-}));
-
-router.post('/documentos/:id/facturar', ruta(async (req, res) => {
-  res.status(201).json(await fact.facturaEmitir(req.params.id));
-}));
-
-router.post('/documentos/:id/rectificar', ruta(async (req, res) => {
-  res.status(201).json(await fact.facturaRectificar(req.params.id, req.body.motivo));
-}));
-
-router.post('/documentos/:id/cobrar', ruta(async (req, res) => {
-  res.json(await fact.facturaCobrar(req.params.id));
-}));
-
-router.get('/documentos/:id', ruta(async (req, res) => {
-  res.json(await fact.documentoDetalle(req.params.id));
-}));
-
-router.get('/documentos/:id/pdf', ruta(async (req, res) => {
-  const fichero = await pdfDelDocumento(req.params.id);
-  res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="' + fichero.nombre + '"' });
-  res.send(fichero.contenido);
-}));
-
-// Los documentos históricos solo existen como PDF original.
-router.get('/documentos/:id/imprimir', ruta(async (req, res) => {
-  const doc = await fact.documento(req.params.id);
-  if (doc.estado === 'HISTORICO') return res.redirect('/api/documentos/' + doc.id + '/pdf');
-  res.type('html').send(documentoHtml(doc, req.prefijo));
 }));
 
 module.exports = router;

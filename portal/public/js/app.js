@@ -77,10 +77,7 @@ function coreMostrarVista(vista) {
   const cargar = {
     inicio: coreCargar,
     incidencias: coreCargar,
-    cobros: cobrosPreparar,
     sesiones: sesionesCargar,
-    pagos: pagosCargar,
-    documentos: documentosCargar,
     correo: correoCargar,
     ajustes: ajustesCargar
   }[vista];
@@ -553,7 +550,7 @@ function tabSesiones(inc) {
       '<div><span>Importe</span><strong>' + fmtDinero(total) + '</strong></div>' +
     '</div>' +
     '<div class="cobro-tabla-wrap"><table class="cobro-tabla">' +
-      '<thead><tr><th>Fecha</th><th>Tiempo real</th><th>Facturable</th><th style="text-align:right">Importe</th><th>Cobro</th></tr></thead>' +
+      '<thead><tr><th>Fecha</th><th>Tiempo real</th><th>Facturable</th><th style="text-align:right">Importe</th><th>Facturación</th></tr></thead>' +
       '<tbody>' + filas + '</tbody>' +
     '</table></div>' +
   '</div>';
@@ -590,7 +587,7 @@ function tabHistorial(inc) {
 
 // Cuántas sesiones de la incidencia ya no se pueden tocar.
 function sesionesCerradas(inc) {
-  return inc.sesiones.filter(function(t) { return t.situacion.clave === 'COBRADO' || t.situacion.clave === 'FACTURADO'; }).length;
+  return inc.sesiones.filter(function(t) { return ['COBRADO', 'FACTURADO', 'SINDRI'].indexOf(t.situacion.clave) !== -1; }).length;
 }
 
 async function confirmarReapertura(inc) {
@@ -598,8 +595,8 @@ async function confirmarReapertura(inc) {
   if (!n) return true;
 
   return coreConfirmar('Reabrir incidencia',
-    'Esta incidencia tiene ' + n + (n === 1 ? ' sesión ya facturada o cobrada, que no cambia.' : ' sesiones ya facturadas o cobradas, que no cambian.') +
-    ' El tiempo que registres a partir de ahora será trabajo nuevo, pendiente de cobro.', 'Reabrir');
+    'Esta incidencia tiene ' + n + (n === 1 ? ' sesión ya en un pedido o cobrada, que no cambia.' : ' sesiones ya en un pedido o cobradas, que no cambian.') +
+    ' El tiempo que registres a partir de ahora será trabajo nuevo, pendiente de facturar.', 'Reabrir');
 }
 
 async function detalleReabrir() {
@@ -708,7 +705,6 @@ async function detalleAdjuntar() {
     document.getElementById('incTipo').innerHTML = opciones(catalogo.tipos, '', 'Todos los tipos');
     document.getElementById('incPrioridad').innerHTML = opciones(elegibles(catalogo.prioridades), '', 'Todas las prioridades');
     nuevaPreparar();
-    cobrosPintarPestanas();
   } catch (err) {
     coreError(err);
   }

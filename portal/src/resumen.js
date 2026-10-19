@@ -1,5 +1,5 @@
-// Resumen mensual por correo: qué hay abierto, qué queda por cobrar y cuánto
-// se trabajó el mes anterior. Se envía solo el día 1 a partir de las 8:00
+// Resumen mensual por correo: qué hay abierto, qué queda por pasar a un pedido
+// de Sindri y cuánto se trabajó el mes anterior. Se envía solo el día 1 a partir de las 8:00
 // (hora de España) y también se puede pedir a mano desde Ajustes.
 
 const { consulta } = require('./db');
@@ -35,7 +35,7 @@ async function datos() {
   const mes = mesAnterior(hoy);
   const cfg = await fact.config();
 
-  // Si las incidencias no se pueden leer, el resumen sale igual con los cobros.
+  // Si las incidencias no se pueden leer, el resumen sale igual con las horas.
   let incidencias = null;
   try {
     incidencias = await almacen.listar();
@@ -44,9 +44,8 @@ async function datos() {
   }
 
   const abiertas = incidencias ? incidencias.filter(i => i.abierta) : [];
-  const pendientes = await fact.trabajos({ cobro: 'PENDIENTE' });
+  const pendientes = (await fact.trabajos({ cobro: 'PENDIENTE' })).filter(t => t.situacion.clave === 'PENDIENTE');
   const delMes = (await fact.trabajos({ desde: mes.desde, hasta: mes.hasta })).filter(t => t.estado !== 'NO_COBRAR');
-  const documentos = await fact.documentos();
 
   return {
     hoy: hoy,
@@ -68,9 +67,7 @@ async function datos() {
       minutos: delMes.reduce((s, t) => s + Number(t.minutos), 0),
       horas: delMes.reduce((s, t) => s + Number(t.horas), 0),
       importe: redondear(delMes.reduce((s, t) => s + Number(t.importe), 0))
-    },
-    proformasPendientes: documentos.filter(d => d.tipo === 'PROFORMA' && d.estado === 'PENDIENTE'),
-    facturasSinCobrar: documentos.filter(d => d.tipo === 'FACTURA' && d.estado === 'EMITIDA')
+    }
   };
 }
 
@@ -82,13 +79,10 @@ function bloques(d) {
 
   const b = [
     { tipo: 'titulo', texto: 'Resumen del ' + diaCorto(d.hoy) },
-    { tipo: 'tabla', titulo: 'Pendiente de cobro', filas: [
+    { tipo: 'tabla', titulo: 'Pendiente de pasar a un pedido en Sindri', filas: [
       ['Importe pendiente', eur(d.pendiente.importe)],
       ['Registros', d.pendiente.registros + (d.pendiente.desde ? ' (desde el ' + diaCorto(d.pendiente.desde) + ')' : '')],
-      ['Horas facturables', d.pendiente.horas + ' h'],
-      ['Proformas sin confirmar', String(d.proformasPendientes.length)],
-      ['Facturas emitidas sin cobrar', d.facturasSinCobrar.length +
-        (d.facturasSinCobrar.length ? ' · ' + eur(d.facturasSinCobrar.reduce((s, f) => s + f.total, 0)) : '')]
+      ['Horas facturables', d.pendiente.horas + ' h']
     ] },
     { tipo: 'tabla', titulo: 'Trabajo de ' + d.mes.nombre, filas: [
       ['Sesiones y gastos', String(d.trabajado.registros)],
@@ -112,7 +106,7 @@ function bloques(d) {
       b.push({ tipo: 'texto', texto: '**Con prioridad alta**\n\n' + lista(d.urgentes, i => '#' + i.id + ' ' + i.titulo + ' · ' + i.estadoTexto) });
     }
   } else {
-    b.push({ tipo: 'texto', texto: 'No se han podido consultar las incidencias en este momento; los datos de cobro sí son correctos.' });
+    b.push({ tipo: 'texto', texto: 'No se han podido consultar las incidencias en este momento; las horas sí son correctas.' });
   }
 
   return b.concat(correo.abrirGestor('', 'Abrir el gestor'));
@@ -122,7 +116,7 @@ async function enviar(para) {
   const d = await datos();
   return correo.enviar({
     para: para,
-    asunto: 'Resumen mensual · ' + dinero(d.pendiente.importe, d.moneda) + ' pendientes de cobro',
+    asunto: 'Resumen mensual · ' + dinero(d.pendiente.importe, d.moneda) + ' pendientes de facturar',
     bloques: bloques(d)
   });
 }
