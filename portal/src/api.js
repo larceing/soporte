@@ -373,9 +373,17 @@ router.post('/clientes', ruta(async (req, res) => {
 router.get('/exportar-sindri', ruta(async (req, res) => {
   const { datosParaSindri } = require('./exportar-sindri');
   const clientes = await consulta('SELECT * FROM ha_cliente ORDER BY nombre');
+  const ocupados = await fact.trabajosOcupados();
+  const trabajos = (await consulta(
+    `SELECT t.id, t.codigo, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
+            i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo
+       FROM ha_trabajo t LEFT JOIN ha_incidencia i ON i.id = t.incidencia_id
+      WHERE t.estado = 'CERRADA' AND t.pago_id IS NULL
+      ORDER BY t.dia, t.id`
+  )).map(t => ({ ...t, ocupado: ocupados.has(Number(t.id)) }));
   const fecha = new Date().toISOString().slice(0, 10);
   res.set('Content-Disposition', `attachment; filename="gestor-para-sindri-${fecha}.json"`);
-  res.json(datosParaSindri(await fact.config(), clientes));
+  res.json(datosParaSindri(await fact.config(), clientes, trabajos));
 }));
 
 /* Trabajos y cobros */

@@ -669,7 +669,7 @@ module.exports = {
   TITULOS, datosDe,
   config, configGuardar,
   clientes, clienteGuardar,
-  trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado,
+  trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
   pendiente, cobrarPeriodo, pagos,
   documentos, documento, documentoDetalle, documentoPdf, resumenCrear, proformaCrear, proformaAnular, facturaEmitir, facturaRectificar, facturaCobrar
 };
