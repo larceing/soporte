@@ -5,6 +5,7 @@
   "puerto": 3000,
   "prefijo": "quitar",
   "version": "version/",
+  "icono": "img/odin.png",
   "despliegue": {
     "tipo": "servidor",
     "imagen": "ghcr.io/larceing/soporte",
