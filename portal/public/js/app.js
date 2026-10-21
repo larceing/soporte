@@ -494,7 +494,13 @@ function tabSeguimiento(inc) {
       '<div class="field"><label for="segPrioridad">Prioridad</label><select id="segPrioridad">' + opciones(elegibles(catalogo.prioridades, inc.prioridad), inc.prioridad) + '</select></div>' +
       '<div class="field"><label for="segLimite">Fecha límite</label><input id="segLimite" type="date" value="' + esc(inc.limite) + '"></div>' +
       '<div class="field"><label for="segTipo">Tipo</label><select id="segTipo">' + opciones(catalogo.tipos, inc.tipo) + '</select></div>' +
-      '<div class="field"><label for="segServicio">Servicio para Sindri</label><select id="segServicio">' + opcionesServicio(inc) + '</select></div>' +
+      '<div class="field field-full"><label for="segServicioBuscar">Servicio para Sindri</label>' +
+        '<div class="servicio-elegir">' +
+          '<input id="segServicioBuscar" type="search" autocomplete="off" placeholder="Buscar: docker, sage incidencias, power bi…" aria-label="Buscar servicio" oninput="servicioFiltrar()">' +
+          '<select id="segServicio" aria-label="Servicio para Sindri">' + opcionesServicio(inc) + '</select>' +
+        '</div>' +
+        '<div id="segServicioCuenta" class="servicio-cuenta">' + esc(textoCuenta('')) + '</div>' +
+      '</div>' +
       '<div class="field field-full"><label for="segTitulo">Título</label><input id="segTitulo" type="text" maxlength="120" value="' + esc(inc.titulo) + '"></div>' +
       '<div class="field field-full"><label for="segDescripcion">Descripción</label><textarea id="segDescripcion" class="alto">' + esc(inc.descripcion) + '</textarea></div>' +
     '</div>' +
@@ -609,14 +615,27 @@ async function detalleReabrir() {
   }
 }
 
-// El artículo de Sindri con que se factura: vacío es el que se deduce del título.
-function opcionesServicio(inc) {
+// El artículo de Sindri con que se factura: vacío es el que se deduce del título. Con un texto
+// de búsqueda solo salen los que tienen todas sus palabras (en el nombre, la referencia, el área
+// o las otras palabras de la tecnología), sin mirar tildes ni mayúsculas; el elegido sale siempre.
+function sinTildes(texto) {
+  return String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function opcionesServicio(inc, buscar) {
   const lista = (serviciosSindri && serviciosSindri.servicios) || [];
   const nombre = function(sku) { const s = lista.find(function(x) { return x.sku === sku; }); return s ? s.name : sku; };
-  const otras = lista.slice();
-  if (inc.servicio && !otras.some(function(s) { return s.sku === inc.servicio; })) otras.unshift({ sku: inc.servicio, name: inc.servicio });
+  const elegido = inc.servicio || '';
+  const palabras = sinTildes(buscar).split(/\s+/).filter(Boolean);
+  const encaja = function(s) {
+    if (!palabras.length || s.sku === elegido) return true;
+    const texto = sinTildes(s.name + ' ' + s.sku + ' ' + (s.area || '') + ' ' + (s.alias || ''));
+    return palabras.every(function(p) { return texto.indexOf(p) >= 0; });
+  };
+  const otras = lista.filter(encaja);
+  if (elegido && !lista.some(function(s) { return s.sku === elegido; })) otras.unshift({ sku: elegido, name: elegido });
   const opcion = function(s) {
-    return '<option value="' + esc(s.sku) + '"' + (s.sku === inc.servicio ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+    return '<option value="' + esc(s.sku) + '"' + (s.sku === elegido ? ' selected' : '') + '>' + esc(s.name) + '</option>';
   };
   // Agrupados por área, en el orden en que llegan (sin área, sueltos arriba).
   let html = '<option value="">Automático: ' + esc(nombre(inc.servicioAuto)) + '</option>';
@@ -629,15 +648,36 @@ function opcionesServicio(inc) {
     }
     html += opcion(s);
   });
+  opcionesServicio.cuenta = { vistos: otras.length, total: lista.length };
   return html + (area ? '</optgroup>' : '');
+}
+
+// Al escribir en el buscador se rehace la lista y se abre como cuadro para elegir con un clic;
+// sin texto vuelve a ser un desplegable. El servicio elegido no se pierde al filtrar.
+function servicioFiltrar() {
+  const campo = document.getElementById('segServicio');
+  const buscar = document.getElementById('segServicioBuscar');
+  if (!campo || !buscar || !detalleActual) return;
+  const inc = Object.assign({}, detalleActual, { servicio: campo.value });
+  campo.innerHTML = opcionesServicio(inc, buscar.value);
+  const vistos = opcionesServicio.cuenta ? opcionesServicio.cuenta.vistos : 0;
+  campo.size = buscar.value.trim() ? Math.max(2, Math.min(10, vistos + 1 + campo.querySelectorAll('optgroup').length)) : 1;
+  const caja = document.getElementById('segServicioCuenta');
+  if (caja) caja.textContent = textoCuenta(buscar.value);
+}
+
+function textoCuenta(buscar) {
+  const c = opcionesServicio.cuenta;
+  if (!c || !c.total) return '';
+  if (!String(buscar || '').trim()) return c.total + ' servicios. Escribe para buscar por nombre, tecnología o área.';
+  return c.vistos ? c.vistos + ' de ' + c.total + ' servicios' : 'Ningún servicio con esas palabras';
 }
 
 async function serviciosCargar() {
   if (serviciosSindri) return;
   try {
     serviciosSindri = await api('GET', '/sindri/servicios');
-    const campo = document.getElementById('segServicio');
-    if (campo && detalleActual) campo.innerHTML = opcionesServicio(detalleActual);
+    if (document.getElementById('segServicio') && detalleActual) servicioFiltrar();
   } catch (err) {
     // Sin la lista se elige igual el automático.
   }

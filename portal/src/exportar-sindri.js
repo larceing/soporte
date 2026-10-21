@@ -5,7 +5,7 @@
 
 const IVA_SINDRI = ['0', '4', '10', '21'];
 
-const { SERVICIOS, CARGO, servicioDe } = require('./servicios');
+const { SERVICIOS, CATALOGO, CARGO, servicioDe } = require('./servicios');
 
 function numero(v) {
   const n = Number(String(v ?? '').replace(',', '.'));
@@ -23,7 +23,10 @@ function datosParaSindri(cfg, clientes, trabajos = []) {
   const irpf = numero(cfg.IRPF);
   const iva = IVA_SINDRI.includes(String(numero(cfg.IVA))) ? String(numero(cfg.IVA)) : '21';
   const general = numero(cfg.TARIFA_HORA);
-  const horas = SERVICIOS;
+  // Los servicios por horas: los de siempre más los del catálogo por tecnología que se usan en
+  // lo pendiente (los otros ~900 no hace falta llevarlos a Sindri hasta que se usen).
+  const usados = new Set(trabajos.filter(pendiente).map(t => t.incidencia_servicio).filter(Boolean));
+  const horas = [...SERVICIOS, ...CATALOGO.filter(s => usados.has(s.sku) && !SERVICIOS.includes(s))];
   const nombreDe = c => (c.razon_social || c.nombre).trim();
   const porId = new Map(clientes.map(c => [Number(c.id), c]));
 

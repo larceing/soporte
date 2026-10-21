@@ -8,20 +8,23 @@
 // Áreas en el orden en que se enseñan al elegir el servicio de una incidencia.
 const AREAS = [
   'Mantenimiento y soporte',
+  'Aplicaciones de negocio',
+  'ERP y gestión',
+  'Ingeniería de datos',
+  'Análisis de datos',
+  'Power BI y datos',
+  'Inteligencia artificial',
+  'Desarrollo a medida',
+  'Web y comercio electrónico',
+  'Microsoft 365',
+  'Google Workspace',
   'Infraestructura y servidores',
   'Correo y dominios',
   'Copias y continuidad',
   'Nube',
   'Redes y comunicaciones',
-  'Puestos de trabajo',
   'Ciberseguridad',
-  'Microsoft 365',
-  'Google Workspace',
-  'Power BI y datos',
-  'Inteligencia artificial',
-  'Desarrollo a medida',
-  'Web y comercio electrónico',
-  'ERP y gestión',
+  'Puestos de trabajo',
   'Planta e industria',
   'Consultoría y acompañamiento'
 ];
@@ -194,4 +197,9 @@ function servicioDe(texto, tipoIncidencia) {
   return SERVICIOS.find(s => s.sku === (/^pet/i.test(tipoIncidencia) ? 'SOP-DES' : 'SOP-INC'));
 }
 
-module.exports = { AREAS, SERVICIOS, CARGO, servicioDe };
+// Todo lo que se puede elegir en una incidencia: los de arriba y los de cada tecnología
+// (src/tecnologias.js). Una referencia repetida se queda con la de arriba.
+const { POR_TECNOLOGIA } = require('./tecnologias');
+const CATALOGO = [...SERVICIOS, ...POR_TECNOLOGIA.filter(t => !SERVICIOS.some(s => s.sku === t.sku))];
+
+module.exports = { AREAS, SERVICIOS, CATALOGO, CARGO, servicioDe };

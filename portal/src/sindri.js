@@ -13,7 +13,7 @@
 const { consulta } = require('./db');
 const fact = require('./facturacion');
 const { datosParaSindri } = require('./exportar-sindri');
-const { AREAS, SERVICIOS } = require('./servicios');
+const { AREAS, CATALOGO } = require('./servicios');
 
 const ESPERA = 5000;
 const CADA = 10 * 60 * 1000;
@@ -146,7 +146,7 @@ async function servicios() {
 // trabajo. Cada uno con su área para agruparlos; lo que solo está en Sindri va a «Otros».
 function conCatalogo(enSindri) {
   const deSindri = new Map(enSindri.map(s => [s.sku, s]));
-  const lista = SERVICIOS.map(s => ({ sku: s.sku, name: (deSindri.get(s.sku) || s).name, area: s.area }));
+  const lista = CATALOGO.map(s => ({ sku: s.sku, name: (deSindri.get(s.sku) || s).name, area: s.area, ...(s.alias ? { alias: s.alias } : {}) }));
   const propios = new Set(lista.map(s => s.sku));
   return [...lista, ...enSindri.filter(s => !propios.has(s.sku)).map(s => ({ ...s, area: 'Otros' }))]
     .sort((a, b) => orden(a.area) - orden(b.area));

@@ -83,4 +83,17 @@ assert.deepStrictEqual(sin.por_facturar, []);
 const elegido = datosParaSindri(cfg, clientes, [{ ...trabajos[0], incidencia_servicio: 'SOP-FORM' }]);
 assert.strictEqual(elegido.por_facturar[0].sku, 'SOP-FORM');
 
+// Uno del catálogo por tecnología: va a Sindri como artículo (y con la tarifa del cliente) solo si se usa.
+const tec = datosParaSindri(cfg, clientes, [{ ...trabajos[0], incidencia_servicio: 'DOCKER-INC' }]);
+assert.strictEqual(tec.por_facturar[0].sku, 'DOCKER-INC');
+assert.deepStrictEqual(tec.productos.find(p => p.sku === 'DOCKER-INC'), { sku: 'DOCKER-INC', name: 'Docker: resolución de incidencias', kind: 'service', uom: 'h', vat_rate: '0', sale_price: '15.5' });
+assert.ok(tec.clientes[0].tarifas.some(t => t.sku === 'DOCKER-INC'));
+assert.ok(!d.productos.some(p => p.sku === 'DOCKER-INC'));
+
+// El catálogo entero: unos mil, sin referencias repetidas, todos con área conocida.
+const { CATALOGO } = require('../src/servicios');
+assert.ok(CATALOGO.length >= 1000, String(CATALOGO.length));
+assert.strictEqual(new Set(CATALOGO.map(s => s.sku)).size, CATALOGO.length);
+assert.ok(CATALOGO.every(s => AREAS.includes(s.area) && s.sku.length <= 40 && s.name.length <= 120));
+
 console.log('exportar-sindri: bien');

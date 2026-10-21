@@ -24,7 +24,7 @@ async function consulta(sql, p = []) {
 require.cache[path.join(__dirname, '../src/db.js')] = { id: 'db', loaded: true, exports: { consulta } };
 
 const sindri = require('../src/sindri');
-const { SERVICIOS } = require('../src/servicios');
+const { CATALOGO } = require('../src/servicios');
 const fact = require('../src/facturacion');
 
 // Sindri de mentira: lo pendiente por referencia, como su API de integración.
@@ -168,7 +168,8 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   productosSindri.push({ sku: 'SOP-INC', name: 'Incidencias (Sindri)', kind: 'service', uom: 'h' });
   const elegir = await sindri.servicios();
   assert.strictEqual(elegir.desde, 'sindri');
-  assert.strictEqual(elegir.servicios.length, SERVICIOS.length + 1);
+  assert.strictEqual(elegir.servicios.length, CATALOGO.length + 1);
+  assert.strictEqual(elegir.servicios.find(s => s.sku === 'DOCKER-INC').alias, 'contenedores');
   assert.deepStrictEqual(elegir.servicios.at(-1), { sku: 'MIO', name: 'Mi servicio', area: 'Otros' });
   assert.strictEqual(elegir.servicios.find(s => s.sku === 'SOP-INC').name, 'Incidencias (Sindri)');
   assert.ok(elegir.servicios.find(s => s.sku === 'INF-DOCKER'));
