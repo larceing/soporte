@@ -615,9 +615,21 @@ function opcionesServicio(inc) {
   const nombre = function(sku) { const s = lista.find(function(x) { return x.sku === sku; }); return s ? s.name : sku; };
   const otras = lista.slice();
   if (inc.servicio && !otras.some(function(s) { return s.sku === inc.servicio; })) otras.unshift({ sku: inc.servicio, name: inc.servicio });
-  return '<option value="">Automático: ' + esc(nombre(inc.servicioAuto)) + '</option>' + otras.map(function(s) {
+  const opcion = function(s) {
     return '<option value="' + esc(s.sku) + '"' + (s.sku === inc.servicio ? ' selected' : '') + '>' + esc(s.name) + '</option>';
-  }).join('');
+  };
+  // Agrupados por área, en el orden en que llegan (sin área, sueltos arriba).
+  let html = '<option value="">Automático: ' + esc(nombre(inc.servicioAuto)) + '</option>';
+  let area = null;
+  otras.forEach(function(s) {
+    if ((s.area || null) !== area) {
+      if (area) html += '</optgroup>';
+      area = s.area || null;
+      if (area) html += '<optgroup label="' + esc(area) + '">';
+    }
+    html += opcion(s);
+  });
+  return html + (area ? '</optgroup>' : '');
 }
 
 async function serviciosCargar() {

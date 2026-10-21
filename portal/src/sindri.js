@@ -13,7 +13,7 @@
 const { consulta } = require('./db');
 const fact = require('./facturacion');
 const { datosParaSindri } = require('./exportar-sindri');
-const { SERVICIOS } = require('./servicios');
+const { AREAS, SERVICIOS } = require('./servicios');
 
 const ESPERA = 5000;
 const CADA = 10 * 60 * 1000;
@@ -130,15 +130,28 @@ async function servicios() {
     if (servCache && servCache.hasta > Date.now() && servCache.url === c.url) return servCache.datos;
     try {
       const productos = await llamar(c, 'GET', '/productos');
-      const datos = { desde: 'sindri', servicios: productos.filter(p => p.kind === 'service' && p.uom === 'h').map(p => ({ sku: p.sku, name: p.name })) };
+      const enSindri = productos.filter(p => p.kind === 'service' && p.uom === 'h').map(p => ({ sku: p.sku, name: p.name }));
+      const datos = { desde: 'sindri', servicios: conCatalogo(enSindri) };
       servCache = { url: c.url, hasta: Date.now() + 5 * 60 * 1000, datos };
       return datos;
     } catch (e) {
       // Sin Sindri a mano, el catálogo propio.
     }
   }
-  return { desde: 'gestor', servicios: SERVICIOS.map(s => ({ sku: s.sku, name: s.name })) };
+  return { desde: 'gestor', servicios: conCatalogo([]) };
 }
+
+// Lo de Sindri (con su nombre de allí) más el catálogo propio que aún no está allí: un servicio
+// nuevo del catálogo se puede elegir antes de usarlo, y se da de alta en Sindri al enviar el
+// trabajo. Cada uno con su área para agruparlos; lo que solo está en Sindri va a «Otros».
+function conCatalogo(enSindri) {
+  const deSindri = new Map(enSindri.map(s => [s.sku, s]));
+  const lista = SERVICIOS.map(s => ({ sku: s.sku, name: (deSindri.get(s.sku) || s).name, area: s.area }));
+  const propios = new Set(lista.map(s => s.sku));
+  return [...lista, ...enSindri.filter(s => !propios.has(s.sku)).map(s => ({ ...s, area: 'Otros' }))]
+    .sort((a, b) => orden(a.area) - orden(b.area));
+}
+const orden = area => (AREAS.includes(area) ? AREAS.indexOf(area) : AREAS.length);
 
 // Lo que falta en Sindri se da de alta allí con los datos de aquí: el cliente (por NIF o nombre)
 // y el servicio (por sku). Sindri no toca lo que ya tiene. Un Sindri sin altas (404) se deja estar.

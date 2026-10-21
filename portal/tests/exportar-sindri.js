@@ -53,6 +53,18 @@ assert.strictEqual(sku('Consulta de seguridad: smishing'), 'SOP-SEG');
 assert.strictEqual(sku('Algo que no encaja'), 'SOP-DES');
 assert.strictEqual(sku('Algo que no encaja', 'Incidencia'), 'SOP-INC');
 assert.strictEqual(sku('Algo que no encaja', null), 'HORA');
+// Los de la ampliación: infraestructura y demás, sin quitar nada a los de antes.
+assert.strictEqual(sku('Renovar el certificado SSL de la web'), 'INF-SSL');
+assert.strictEqual(sku('Contenedor Docker que se reinicia'), 'INF-DOCKER');
+assert.strictEqual(sku('Crear alias de correo para Iván'), 'COR-BUZON');
+assert.strictEqual(sku('Registros SPF y DKIM del dominio'), 'COR-ENTREGA');
+assert.strictEqual(sku('Presupuesto para el cliente'), 'ERP-CRM');
+assert.strictEqual(sku('Envío de Facturae a FACe'), 'ERP-EFACT');
+assert.strictEqual(sku('Grupo nuevo en Keycloak'), 'INF-SSO');
+// Todos tienen área conocida, y 150 o así, sin repetir referencia.
+const { AREAS } = require('../src/servicios');
+assert.ok(SERVICIOS.every(s => AREAS.includes(s.area)));
+assert.ok(SERVICIOS.length >= 140);
 
 // Solo lo pendiente de cobrar, con las horas como cantidad y la tarifa del momento.
 assert.deepStrictEqual(d.por_facturar.map(p => [p.ref, p.sku, p.cantidad, p.precio]),
