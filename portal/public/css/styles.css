@@ -286,6 +286,21 @@ textarea {
   flex-shrink: 0;
 }
 
+.servicio-elegir {
+  display: grid;
+  gap: 8px;
+}
+
+.field .servicio-elegir select[size]:not([size="1"]) {
+  height: auto;
+  padding: 6px;
+}
+
+.servicio-cuenta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .field input[readonly] {
   background: var(--bg);
   color: var(--muted);

@@ -24,6 +24,7 @@ async function consulta(sql, p = []) {
 require.cache[path.join(__dirname, '../src/db.js')] = { id: 'db', loaded: true, exports: { consulta } };
 
 const sindri = require('../src/sindri');
+const { CATALOGO } = require('../src/servicios');
 const fact = require('../src/facturacion');
 
 // Sindri de mentira: lo pendiente por referencia, como su API de integración.
@@ -162,9 +163,16 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   r = await sindri.sincronizar();
   assert.deepStrictEqual(r.altas, { clientes: 0, servicios: 0 });
 
-  // Para elegir: los servicios por horas de Sindri.
+  // Para elegir: el catálogo entero (con el nombre de Sindri si allí lo tienen) y lo que solo está en Sindri, en «Otros».
   productosSindri.splice(2);
-  assert.deepStrictEqual(await sindri.servicios(), { desde: 'sindri', servicios: [{ sku: 'MIO', name: 'Mi servicio' }] });
+  productosSindri.push({ sku: 'SOP-INC', name: 'Incidencias (Sindri)', kind: 'service', uom: 'h' });
+  const elegir = await sindri.servicios();
+  assert.strictEqual(elegir.desde, 'sindri');
+  assert.strictEqual(elegir.servicios.length, CATALOGO.length + 1);
+  assert.strictEqual(elegir.servicios.find(s => s.sku === 'DOCKER-INC').alias, 'contenedores');
+  assert.deepStrictEqual(elegir.servicios.at(-1), { sku: 'MIO', name: 'Mi servicio', area: 'Otros' });
+  assert.strictEqual(elegir.servicios.find(s => s.sku === 'SOP-INC').name, 'Incidencias (Sindri)');
+  assert.ok(elegir.servicios.find(s => s.sku === 'INF-DOCKER'));
 
   // Quitar la llave apaga el envío.
   await sindri.guardarConexion({ quitar: true });
