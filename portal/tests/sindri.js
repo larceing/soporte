@@ -29,6 +29,9 @@ const fact = require('../src/facturacion');
 // Sindri de mentira: lo pendiente por referencia, como su API de integración.
 const LLAVE = 'sdi_prueba';
 const enSindri = new Map();
+let conAltas = false;
+const clientesSindri = [{ id: '0f0e0d0c-0000-4000-8000-000000000001', name: 'Cliente SL', tax_id: 'B11111111' }];
+const productosSindri = [{ sku: 'MIO', name: 'Mi servicio', kind: 'service', uom: 'h' }, { sku: 'CAJA', name: 'Caja', kind: 'stockable', uom: 'ud' }];
 const servidor = http.createServer((req, res) => {
   let cuerpo = '';
   req.on('data', c => { cuerpo += c; });
@@ -37,7 +40,23 @@ const servidor = http.createServer((req, res) => {
     if (req.headers.authorization !== 'Bearer ' + LLAVE) return responder(401, { error: 'Llave no válida' });
     const u = req.url.replace('/api/integracion/v1', '');
     if (u === '/yo') return responder(200, { app: 'incidencias', empresa: { name: 'Mi empresa' } });
-    if (u === '/clientes') return responder(200, [{ id: '0f0e0d0c-0000-4000-8000-000000000001', name: 'Cliente SL', tax_id: 'B11111111' }]);
+    if (u === '/clientes' && req.method === 'POST') {
+      if (!conAltas) return responder(404, {});
+      const b = JSON.parse(cuerpo);
+      if (b.tax_id === 'X1') return responder(422, { error: 'NIF no válido: X1' });
+      const ya = clientesSindri.find(x => x.name.toLowerCase() === b.name.toLowerCase());
+      if (ya) return responder(200, { id: ya.id, creado: false });
+      const id = '0f0e0d0c-0000-4000-8000-00000000000' + (clientesSindri.length + 1);
+      clientesSindri.push({ id, ...b });
+      return responder(201, { id, creado: true });
+    }
+    if (u === '/clientes') return responder(200, clientesSindri);
+    if (u === '/productos' && req.method === 'POST') {
+      if (!conAltas) return responder(404, {});
+      const b = JSON.parse(cuerpo);
+      productosSindri.push({ ...b, kind: 'service' });
+      return responder(201, { id: b.sku, creado: true });
+    }
     if (u === '/por-facturar' && req.method === 'POST') {
       const out = JSON.parse(cuerpo).elementos.map(e => {
         if (e.producto === 'NO-EXISTE') return { ref: e.ref, estado: 'error', error: 'No hay producto' };
@@ -49,7 +68,7 @@ const servidor = http.createServer((req, res) => {
       return responder(200, { elementos: out });
     }
     if (u === '/por-facturar') return responder(200, [...enSindri.values()].map(e => ({ ref: e.ref, estado: e.estado, pedido: e.pedido || null })));
-    if (u === '/productos') return responder(200, [{ sku: 'MIO', name: 'Mi servicio', kind: 'service', uom: 'h' }, { sku: 'CAJA', name: 'Caja', kind: 'stockable', uom: 'ud' }]);
+    if (u === '/productos') return responder(200, productosSindri);
     if (req.method === 'DELETE') { enSindri.delete(decodeURIComponent(u.split('/').pop())); return responder(200, { ok: true }); }
     responder(404, {});
   });
@@ -126,7 +145,25 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   await sindri.sincronizar();
   assert.strictEqual(trabajos[2].sindri_pedido, null);
 
+  // Con un Sindri que da de alta: el cliente que falta (con sus datos) y los servicios que se usan.
+  conAltas = true;
+  clientes.push({ id: 3, nombre: 'Taller Norte', nif: 'B22222222', email: 'a@example.test', activo: 1 });
+  trabajos.push({ ...base, id: 5, cliente_id: 3, codigo: 'SES-5', horas: 1, concepto: 'Otra cosa' });
+  r = await sindri.sincronizar();
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.altas.clientes, 1);
+  assert.ok(r.altas.servicios >= 1);
+  assert.ok(clientesSindri.some(x => x.name === 'Taller Norte' && x.tax_id === 'B22222222' && x.email === 'a@example.test'));
+  assert.ok(productosSindri.some(x => x.sku === 'SOP-CARGO' && x.uom === 'ud'));
+  assert.strictEqual(enSindri.get('SES-5').cliente, clientesSindri.find(x => x.name === 'Taller Norte').id);
+  // El NIF mal escrito no entra: queda como error, con el motivo, y no para lo demás.
+  assert.ok(r.errores.some(e => e.ref === 'Nuevo' && /NIF/.test(e.error)));
+  assert.ok(r.errores.some(e => e.ref === 'SES-4'));
+  r = await sindri.sincronizar();
+  assert.deepStrictEqual(r.altas, { clientes: 0, servicios: 0 });
+
   // Para elegir: los servicios por horas de Sindri.
+  productosSindri.splice(2);
   assert.deepStrictEqual(await sindri.servicios(), { desde: 'sindri', servicios: [{ sku: 'MIO', name: 'Mi servicio' }] });
 
   // Quitar la llave apaga el envío.
