@@ -140,6 +140,44 @@ async function servicios() {
   return { desde: 'gestor', servicios: SERVICIOS.map(s => ({ sku: s.sku, name: s.name })) };
 }
 
+// Lo que falta en Sindri se da de alta allí con los datos de aquí: el cliente (por NIF o nombre)
+// y el servicio (por sku). Sindri no toca lo que ya tiene. Un Sindri sin altas (404) se deja estar.
+async function altaPermitida(c, ruta, cuerpo, altas, que) {
+  try {
+    const r = await llamar(c, 'POST', ruta, cuerpo);
+    return r && r.creado ? 1 : 0;
+  } catch (e) {
+    if (e.status !== 404) altas.errores.push({ ref: que, error: 'No se ha podido dar de alta en Sindri: ' + e.message });
+    return e.status === 404 ? -1 : 0;
+  }
+}
+
+async function altaServicios(c, datos, altas) {
+  const hace = [...new Set(datos.por_facturar.map(p => p.sku))];
+  if (!hace.length) return;
+  const hay = new Set((await llamar(c, 'GET', '/productos')).map(p => p.sku));
+  for (const sku of hace.filter(s => !hay.has(s))) {
+    const p = datos.productos.find(x => x.sku === sku) || { sku, name: sku, uom: 'h' };
+    const r = await altaPermitida(c, '/productos', { sku: p.sku, name: p.name, uom: p.uom, sale_price: p.sale_price, vat_rate: p.vat_rate }, altas, sku);
+    if (r < 0) return;
+    if (r) { altas.servicios++; servCache = null; }
+  }
+}
+
+async function altaClientes(c, datos, clientesSindri, altas) {
+  const { sinCliente } = elementosParaSindri(datos.por_facturar, clientesSindri);
+  if (!sinCliente.length) return false;
+  const faltan = new Set(datos.por_facturar.filter(p => sinCliente.some(s => s.ref === p.ref)).map(p => clave(p.cliente.name)));
+  let hechos = 0;
+  for (const cli of datos.clientes.filter(x => faltan.has(clave(x.name)))) {
+    const cuerpo = Object.fromEntries(['name', 'trade_name', 'tax_id', 'email', 'phone', 'address', 'notes'].filter(k => cli[k]).map(k => [k, cli[k]]));
+    const r = await altaPermitida(c, '/clientes', cuerpo, altas, cli.name);
+    if (r < 0) return hechos > 0;
+    if (r) { altas.clientes++; hechos++; }
+  }
+  return true;
+}
+
 async function enviar() {
   const c = await conexion();
   if (!c.llave || !c.url) return null;
@@ -147,11 +185,16 @@ async function enviar() {
   try {
     const yo = await llamar(c, 'GET', '/yo');
     const [cfg, clientes, trabajos] = await Promise.all([fact.config(), consulta('SELECT * FROM ha_cliente ORDER BY nombre'), trabajosPendientes()]);
-    const { por_facturar } = datosParaSindri(cfg, clientes, trabajos);
-    const { elementos, sinCliente } = elementosParaSindri(por_facturar, await llamar(c, 'GET', '/clientes'));
+    const datos = datosParaSindri(cfg, clientes, trabajos);
+    const { por_facturar } = datos;
+    const altas = { clientes: 0, servicios: 0, errores: [] };
+    await altaServicios(c, datos, altas);
+    let clientesSindri = await llamar(c, 'GET', '/clientes');
+    if (await altaClientes(c, datos, clientesSindri, altas)) clientesSindri = await llamar(c, 'GET', '/clientes');
+    const { elementos, sinCliente } = elementosParaSindri(por_facturar, clientesSindri);
 
     const cuenta = { creado: 0, actualizado: 0, en_pedido: 0, descartado: 0, retirados: 0 };
-    const errores = [...sinCliente];
+    const errores = [...altas.errores, ...sinCliente];
     for (let i = 0; i < elementos.length; i += 500) {
       const r = await llamar(c, 'POST', '/por-facturar', { elementos: elementos.slice(i, i + 500) });
       for (const e of r.elementos || []) {
@@ -178,7 +221,7 @@ async function enviar() {
     ultima = {
       ok: true, cuando: inicio.toISOString(), empresa: yo.empresa && (yo.empresa.trade_name || yo.empresa.name),
       llave: yo.app, aviso: yo.app !== NOMBRE_LLAVE ? 'La llave de Sindri se llama «' + yo.app + '»: llámala «' + NOMBRE_LLAVE + '» para que lo enviado y lo importado con el fichero sean lo mismo.' : '',
-      pendientes: por_facturar.length, ...cuenta, errores: errores.slice(0, 50)
+      pendientes: por_facturar.length, ...cuenta, altas: { clientes: altas.clientes, servicios: altas.servicios }, errores: errores.slice(0, 50)
     };
   } catch (e) {
     ultima = { ok: false, cuando: inicio.toISOString(), error: e.name === 'TimeoutError' ? 'Sindri no responde.' : (e.cause ? 'No se puede conectar con Sindri en ' + c.url + '.' : e.message) };

@@ -213,6 +213,8 @@ function sindriPintar(e) {
     t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + (u.pendientes - u.en_pedido) + ' por facturar (' +
       u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.retirados + ' retirados)' +
       (u.en_pedido ? '; ' + u.en_pedido + ' ya están en un pedido de Sindri' : '') + '.';
+    const a = u.altas || {};
+    if (a.clientes || a.servicios) t += ' Dados de alta en Sindri: ' + [a.clientes ? a.clientes + ' cliente' + (a.clientes > 1 ? 's' : '') : '', a.servicios ? a.servicios + ' servicio' + (a.servicios > 1 ? 's' : '') : ''].filter(Boolean).join(' y ') + '.';
     if (u.errores.length) t += ' No han entrado ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
     if (u.aviso) t += ' ' + u.aviso;
   }

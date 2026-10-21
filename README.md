@@ -233,9 +233,11 @@ Sindri …» en Horas y en la ficha) y entonces ya no se puede marcar como «No 
    y la llave. La llave no vuelve nunca al navegador. También pueden ir como `SINDRI_URL` y
    `SINDRI_LLAVE` en el `app.env`, y entonces mandan esas.
 
-Antes hay que importar una vez el fichero, que crea en Sindri los clientes y los servicios: la API
-de integración no los crea. Un trabajo de un cliente o servicio que Sindri no tiene se queda fuera
-y Ajustes → Sindri lo dice.
+Si a Sindri le falta el cliente (se busca por NIF y por nombre) o el servicio (por su código), el
+envío lo da de alta allí con los datos de aquí: nombre, NIF, correo, teléfono y dirección del
+cliente; nombre, unidad, tarifa e IVA del servicio. Lo que Sindri ya tiene no se toca. Si un alta
+no entra (p. ej. un NIF mal escrito), ese trabajo se queda fuera y Ajustes → Sindri dice por qué.
+Con un Sindri que aún no admite altas, hay que importar antes una vez el fichero.
 
 ## Gestor de tareas
 
