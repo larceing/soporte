@@ -209,8 +209,10 @@ function sindriPintar(e) {
   else if (!u) t = 'Conectado' + (desdeEntorno ? ' (lo pone el servidor)' : '') + '. El primer envío sale en unos segundos.';
   else if (!u.ok) t = 'Último intento, ' + fecha(u.cuando) + ': ' + u.error;
   else {
-    t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + u.pendientes + ' pendientes (' +
-      u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.en_pedido + ' ya en pedido, ' + u.retirados + ' retirados).';
+    // Lo que ya está en un pedido de Sindri está facturado allí: no se cuenta como pendiente.
+    t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + (u.pendientes - u.en_pedido) + ' por facturar (' +
+      u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.retirados + ' retirados)' +
+      (u.en_pedido ? '; ' + u.en_pedido + ' ya están en un pedido de Sindri' : '') + '.';
     if (u.errores.length) t += ' No han entrado ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
     if (u.aviso) t += ' ' + u.aviso;
   }
