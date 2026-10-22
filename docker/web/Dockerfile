@@ -20,7 +20,11 @@ RUN curl -fsSL -o /tmp/mantisbt.tar.gz \
     && echo "${MANTIS_SHA256}  /tmp/mantisbt.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/mantisbt.tar.gz -C /var/www/html --strip-components=1 \
     && rm /tmp/mantisbt.tar.gz \
-    && chown -R www-data:www-data /var/www/html
+    # El código es de root y Apache (www-data) solo lo lee: si alguien lograra
+    # ejecutar código como www-data, no podría dejar ficheros en la web. La
+    # imagen base deja /var/www/html con permisos 1777; aquí se cierran.
+    && chown -R root:root /var/www/html \
+    && chmod -R u=rwX,go=rX /var/www/html
 
 RUN cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
 COPY php.ini "$PHP_INI_DIR/conf.d/mantisbt.ini"
