@@ -179,6 +179,14 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   assert.strictEqual((await sindri.estado()).configurado, false);
   assert.strictEqual((await sindri.servicios()).desde, 'gestor');
 
+  // Cambiar solo la dirección borra la llave guardada: no viaja a otro sitio.
+  await sindri.guardarConexion({ url: url + '/', llave: 'otra' });
+  await sindri.guardarConexion({ url });
+  assert.strictEqual((await sindri.estado()).configurado, true);
+  await sindri.guardarConexion({ url: 'https://otra.example.test' });
+  assert.strictEqual((await sindri.estado()).configurado, false);
+  assert.strictEqual((await sindri.estado()).url, 'https://otra.example.test');
+
   servidor.close();
   console.log('sindri: bien');
   process.exit(0);

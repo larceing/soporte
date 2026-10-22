@@ -124,6 +124,14 @@ const servidor = http.createServer((req, res) => {
   await tareas.guardarConexion({ quitar: true });
   assert.strictEqual((await tareas.estado()).configurado, false);
 
+  // Cambiar solo la dirección borra la llave guardada: no viaja a otro sitio.
+  await tareas.guardarConexion({ url: url + '/', llave: 'otra' });
+  await tareas.guardarConexion({ url });
+  assert.strictEqual((await tareas.estado()).configurado, true);
+  await tareas.guardarConexion({ url: 'https://otra.example.test' });
+  assert.strictEqual((await tareas.estado()).configurado, false);
+  assert.strictEqual((await tareas.estado()).url, 'https://otra.example.test');
+
   servidor.close();
   console.log('tareas: bien');
   process.exit(0);

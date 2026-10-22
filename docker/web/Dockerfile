@@ -22,5 +22,7 @@ RUN curl -fsSL -o /tmp/mantisbt.tar.gz \
     && rm /tmp/mantisbt.tar.gz \
     && chown -R www-data:www-data /var/www/html
 
-RUN cp "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
+# php.ini de producción: los errores van al log del contenedor (docker logs), no a la página,
+# para no enseñar rutas, consultas ni versiones a quien navega.
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 COPY php.ini "$PHP_INI_DIR/conf.d/mantisbt.ini"

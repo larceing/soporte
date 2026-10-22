@@ -11,7 +11,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Aplicación (portal) | https://soporte.luiscontacto03.com | App `soporte` del servidor DEV/PRO: contenedores `soporte-dev-app-1` y `soporte-pro-app-1` (imagen `ghcr.io/larceing/soporte`), entrada con Keycloak. DEV en https://dev.luiscontacto03.com/soporte/ |
 | Motor de incidencias | Solo redes internas del servidor | Contenedor `incidencias-mantis`, MantisBT 2.28.4 sin modificar |
 | Base de datos | Solo redes internas del servidor | Contenedor `incidencias-db`, MariaDB 11.4. Tablas `mantis_*` (MantisBT) y `ha_*` (portal) |
-| Servidor | `178.104.121.47`, Ubuntu 24.04, 2 CPU, 3,7 GB RAM | Carpeta `/opt/apps/incidencias`. Comparte máquina con citas, krearte y app_spsil |
+| Servidor | IP pública en Cloudflare (registro A de `soporte`), Ubuntu 24.04, 2 CPU, 3,7 GB RAM | Carpeta `/opt/apps/incidencias`. Comparte máquina con citas, krearte y app_spsil |
 | Proxy y HTTPS | Nginx Proxy Manager en `/opt/apps/proxy` | Host `soporte.luiscontacto03.com` → `entrada-pro` (lo cambia Ajustes con «Poner en su dominio»), certificado Let's Encrypt |
 | Dominio | Registrado en WordPress.com, DNS en Cloudflare | Los registros se cambian en Cloudflare |
 | Envío de correo | Resend, región Irlanda | Remitente `soporte@luiscontacto03.com` |
@@ -27,7 +27,7 @@ contraseña ni clave: solo dónde se guarda cada una.
 | Contraseñas de base de datos, token de MantisBT y clave de Resend en producción | `/opt/apps/incidencias/.env` en el servidor |
 | Las mismas en local | `.env` de esta carpeta (no se versiona) |
 | Acceso al servidor | `ssh servidor` (alias en `~/.ssh/config`, clave `~/.ssh/id_ed25519_servidor`) |
-| Panel de Nginx Proxy Manager | `http://178.104.121.47:81`, usuario propio |
+| Panel de Nginx Proxy Manager | Puerto 81 del servidor, usuario propio. Sin HTTPS: mejor no dejarlo abierto a internet y entrar por túnel (`ssh -L 8181:localhost:81 servidor` y luego `http://localhost:8181`) |
 | Resend, Cloudflare, WordPress.com | Cuentas con el Gmail personal |
 
 El `.env` del servidor lo lee también un script de shell: los valores con espacios o con `<` `>`
@@ -37,10 +37,10 @@ van entre comillas dobles.
 
 | Tipo | Nombre | Valor | Para qué |
 |---|---|---|---|
-| A | `@` (raíz) | `178.104.121.47` (solo DNS) | El portafolio. Antes eran dos registros de WordPress.com: `192.0.78.207` y `192.0.78.176`, con proxy |
+| A | `@` (raíz) | IP del servidor (solo DNS) | El portafolio. Antes eran dos registros de WordPress.com: `192.0.78.207` y `192.0.78.176`, con proxy |
 | CNAME | `www` | `luiscontacto03.com` (solo DNS) | Redirige a la raíz |
-| A | `soporte` | `178.104.121.47` (solo DNS, nube gris) | El portal |
-| A | `citas`, `krearte`, `stock` | `178.104.121.47` | Otras aplicaciones |
+| A | `soporte` | IP del servidor (solo DNS, nube gris) | El portal |
+| A | `citas`, `krearte`, `stock` | IP del servidor | Otras aplicaciones |
 | MX | `@` | `route1`, `route2`, `route3.mx.cloudflare.net` | Recibir correo (Cloudflare Email Routing) |
 | TXT | `@` | `v=spf1 include:_spf.mx.cloudflare.net include:_spf.wpcloud.com ~all` | SPF: autoriza a Cloudflare y a WordPress. Solo puede haber un registro SPF |
 | TXT | `cf2024-1._domainkey` | Firma DKIM de Cloudflare | Reenvío de correo |
