@@ -102,7 +102,7 @@ function sesionesPintar() {
     if (t.incidenciaId) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="detalleTab=\'sesiones\'; detalleAbrir(' + t.incidenciaId + ')">Ver incidencia</button>');
     }
-    if (libre) {
+    if (libre && !t.deOtro) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sesionEstado(' + t.id + ', \'' +
         (t.estado === 'NO_COBRAR' ? 'CERRADA' : 'NO_COBRAR') + '\')">' + (t.estado === 'NO_COBRAR' ? 'Volver a facturar' : 'No facturar') + '</button>');
     }
@@ -114,7 +114,7 @@ function sesionesPintar() {
         '<span class="doc-total">' + fmtDinero(t.importe) + '</span>' +
       '</div>' +
       '<div class="doc-title">' + esc(t.concepto) + '</div>' +
-      '<div class="doc-sub">' + esc(t.codigo) + ' · ' +
+      '<div class="doc-sub">' + esc(t.codigo) + (t.deOtro ? ' · de ' + esc(t.autor || 'general') : '') + ' · ' +
         (t.tipo === 'UNICO' ? 'Gasto suelto' : fmtDuracion(t.minutos) + ' reales · ' + esc(t.horas) + ' h a ' + fmtDinero(t.tarifa)) + '</div>' +
       (acciones.length ? '<div class="doc-actions">' + acciones.join('') + '</div>' : '') +
     '</div>';
@@ -148,6 +148,7 @@ async function ajustesCargar() {
     : 'El envío de correo no está configurado en este servidor: no se enviará nada.';
 
   sindriCargar();
+  horasPermisosCargar();
   tareasCargar();
 
   Object.keys(cfg).forEach(function(clave) {
@@ -194,9 +195,27 @@ async function clienteGuardar() {
 
 /* Sindri */
 
+const sindriFecha = function(iso) { return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }); };
+
+// Cómo fue un envío, en una frase.
+function sindriResumen(u) {
+  const fecha = sindriFecha;
+  let t;
+  if (!u.ok) return 'Último intento, ' + fecha(u.cuando) + ': ' + u.error;
+  // Lo que ya está en un pedido de Sindri está facturado allí: no se cuenta como pendiente.
+  t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + (u.pendientes - u.en_pedido) + ' por facturar (' +
+    u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.retirados + ' retirados)' +
+    (u.en_pedido ? '; ' + u.en_pedido + ' ya están en un pedido de Sindri' : '') + '.';
+  const a = u.altas || {};
+  if (a.clientes || a.servicios) t += ' Dados de alta en Sindri: ' + [a.clientes ? a.clientes + ' cliente' + (a.clientes > 1 ? 's' : '') : '', a.servicios ? a.servicios + ' servicio' + (a.servicios > 1 ? 's' : '') : ''].filter(Boolean).join(' y ') + '.';
+  if (u.errores.length) t += ' No han entrado ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
+  if (u.aviso) t += ' ' + u.aviso;
+  return t;
+}
+
 function sindriPintar(e) {
-  const fecha = function(iso) { return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }); };
-  const desdeEntorno = e.desde === 'entorno';
+  // Quien trabaja para su propia empresa no toca la conexión general ni ve cómo le va.
+  const desdeEntorno = e.desde === 'entorno' || e.independiente;
   document.getElementById('sindriCampos').classList.toggle('hidden', desdeEntorno);
   document.getElementById('sindriGuardarBtn').classList.toggle('hidden', desdeEntorno);
   document.getElementById('sindriQuitarBtn').classList.toggle('hidden', desdeEntorno || !e.configurado);
@@ -205,20 +224,60 @@ function sindriPintar(e) {
   document.getElementById('sindriLlave').placeholder = e.configurado ? 'Guardada (escribe otra para cambiarla)' : 'sdi_…';
   const u = e.ultima;
   let t;
-  if (!e.configurado) t = 'Sin conectar: no se envía nada.';
+  if (!e.configurado) t = 'Sin llave general: solo se envía lo de quien tiene llave propia.';
   else if (!u) t = 'Conectado' + (desdeEntorno ? ' (lo pone el servidor)' : '') + '. El primer envío sale en unos segundos.';
-  else if (!u.ok) t = 'Último intento, ' + fecha(u.cuando) + ': ' + u.error;
-  else {
-    // Lo que ya está en un pedido de Sindri está facturado allí: no se cuenta como pendiente.
-    t = 'Último envío a ' + (u.empresa || 'Sindri') + ', ' + fecha(u.cuando) + ': ' + (u.pendientes - u.en_pedido) + ' por facturar (' +
-      u.creado + ' nuevos, ' + u.actualizado + ' al día, ' + u.retirados + ' retirados)' +
-      (u.en_pedido ? '; ' + u.en_pedido + ' ya están en un pedido de Sindri' : '') + '.';
-    const a = u.altas || {};
-    if (a.clientes || a.servicios) t += ' Dados de alta en Sindri: ' + [a.clientes ? a.clientes + ' cliente' + (a.clientes > 1 ? 's' : '') : '', a.servicios ? a.servicios + ' servicio' + (a.servicios > 1 ? 's' : '') : ''].filter(Boolean).join(' y ') + '.';
-    if (u.errores.length) t += ' No han entrado ' + u.errores.length + ': ' + u.errores.slice(0, 3).map(function(x) { return x.ref + ' (' + x.error + ')'; }).join('; ') + (u.errores.length > 3 ? '…' : '') + '.';
-    if (u.aviso) t += ' ' + u.aviso;
-  }
+  else t = sindriResumen(u);
+  if (e.independiente) t = 'La conexión general la lleva quien administra el gestor. Lo tuyo va con tu llave, abajo.';
+  if (e.personas && e.personas.length) t += ' Con su propia empresa: ' + e.personas.join(', ') + '.';
   document.getElementById('sindriEstado').textContent = t;
+
+  const m = e.mia || {};
+  document.getElementById('sindriMiaLlave').value = '';
+  document.getElementById('sindriMiaLlave').placeholder = m.configurada ? 'Guardada (escribe otra para cambiarla)' : 'sdi_…';
+  document.getElementById('sindriMiaQuitarBtn').classList.toggle('hidden', !m.configurada);
+  document.getElementById('sindriMiaEstado').textContent = m.enEspera
+    ? 'Sin llave: lo que apuntas espera y no se envía a ninguna empresa.'
+    : !m.configurada ? 'Sin llave propia: lo que apuntas va a la empresa de arriba.'
+    : m.ultima ? sindriResumen(m.ultima) : 'Guardada. El primer envío a tu empresa sale en unos segundos.';
+}
+
+async function horasPermisosPintar(p) {
+  const partes = [];
+  partes.push(p.dejo.length ? 'Ven tus horas: ' + p.dejo.join(', ') + '.' : 'Nadie más ve tus horas.');
+  if (p.meDejan.length) partes.push('Tú ves las de: ' + p.meDejan.join(', ') + '.');
+  document.getElementById('horasPermisosEstado').textContent = partes.join(' ');
+}
+
+async function horasPermisosCargar() {
+  try { horasPermisosPintar(await api('GET', '/horas/permisos')); } catch (err) { coreMensaje('mensajeHorasPermisos', err.message, 'error'); }
+}
+
+async function horasPermiso(ver) {
+  try {
+    horasPermisosPintar(await api('PUT', '/horas/permisos', { usuario: document.getElementById('horasPermisoUsuario').value, ver: ver }));
+    document.getElementById('horasPermisoUsuario').value = '';
+    coreMensaje('mensajeHorasPermisos', ver ? 'Hecho: ya puede ver tus horas.' : 'Hecho: ya no las ve.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeHorasPermisos', err.message, 'error');
+  }
+}
+
+async function sindriMiaGuardar() {
+  try {
+    sindriPintar(await api('PUT', '/sindri/mia', { llave: document.getElementById('sindriMiaLlave').value }));
+    coreMensaje('mensajeSindriMia', 'Guardada: tus horas irán a tu empresa.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeSindriMia', err.message, 'error');
+  }
+}
+
+async function sindriMiaQuitar() {
+  try {
+    sindriPintar(await api('PUT', '/sindri/mia', { quitar: true }));
+    coreMensaje('mensajeSindriMia', 'Llave quitada: lo tuyo espera hasta que pongas otra.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeSindriMia', err.message, 'error');
+  }
 }
 
 async function sindriCargar() {
@@ -257,7 +316,8 @@ async function sindriQuitar() {
 
 function tareasPintar(e) {
   const fecha = function(iso) { return new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }); };
-  const desdeEntorno = e.desde === 'entorno';
+  // Quien trabaja para su propia empresa no toca la conexión general ni ve cómo le va.
+  const desdeEntorno = e.desde === 'entorno' || e.independiente;
   document.getElementById('tareasCampos').classList.toggle('hidden', desdeEntorno);
   document.getElementById('tareasGuardarBtn').classList.toggle('hidden', desdeEntorno);
   document.getElementById('tareasQuitarBtn').classList.toggle('hidden', desdeEntorno || !e.configurado);

@@ -31,8 +31,17 @@ router.use((req, res, next) => {
 const elegibles = lista => lista.filter(x => x.elegible).map(x => x.nombre);
 
 // La ficha lleva también sus sesiones de trabajo con su situación (pendiente, en un pedido de Sindri...).
-async function conSesiones(incidencia) {
-  return { ...incidencia, sesiones: await fact.trabajos({ incidenciaId: incidencia.id }) };
+// Las sesiones de la incidencia que ve quien pregunta: las suyas y las de quien le deje verlas.
+async function conSesiones(incidencia, usuario) {
+  return { ...incidencia, sesiones: await fact.trabajos({ incidenciaId: incidencia.id }, usuario || '') };
+}
+
+// Lo que es de todos (la conexión general con Sindri, la configuración): no lo cambia quien
+// trabaja para su propia empresa.
+async function soloGeneral(req) {
+  if ((await fact.vista(req.usuario.usuario)).independiente) {
+    throw new ErrorUsuario('Esto lo cambia quien lleva el gestor: tú trabajas con tu propia empresa.', 403);
+  }
 }
 
 // Guarda una nota en la incidencia y, si lleva tiempo, la sesión facturable. El
@@ -56,7 +65,8 @@ async function registrarNota(incidenciaId, nota, minutos, autor) {
       notaId: notaId,
       concepto: incidencia.titulo,
       detalle: nota,
-      minutos: minutos
+      minutos: minutos,
+      autor: autor
     });
   }
   return incidencia;
@@ -85,7 +95,7 @@ router.post('/cuenta/resumen', ruta(async (req, res) => {
   const datos = await auth.cuenta(req);
   if (!datos.email) throw new ErrorUsuario('Guarda antes un correo en tu cuenta.');
 
-  const resultado = await resumen.enviar(datos.email);
+  const resultado = await resumen.enviar(datos.email, req.usuario.usuario);
   if (!resultado.enviado) throw new ErrorUsuario(resultado.motivo, 502);
   res.json({ ok: true, para: datos.email });
 }));
@@ -121,11 +131,11 @@ router.post('/incidencias', ruta(async (req, res) => {
     prioridad: prioridad,
     limite: req.body.limite || '',
     autor: req.usuario.usuario
-  })));
+  }), req.usuario.usuario));
 }));
 
 router.get('/incidencias/:id', ruta(async (req, res) => {
-  res.json(await conSesiones(await incidencias.obtener(req.params.id)));
+  res.json(await conSesiones(await incidencias.obtener(req.params.id), req.usuario.usuario));
 }));
 
 // Seguimiento: título, descripción, tipo, estado, prioridad y fecha límite.
@@ -173,7 +183,7 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
     }
   }
 
-  res.json(await conSesiones(await incidencias.actualizar(req.params.id, cambios)));
+  res.json(await conSesiones(await incidencias.actualizar(req.params.id, cambios), req.usuario.usuario));
 }));
 
 router.post('/incidencias/:id/notas', ruta(async (req, res) => {
@@ -181,7 +191,7 @@ router.post('/incidencias/:id/notas', ruta(async (req, res) => {
   const minutos = Math.max(0, Math.round(Number(req.body.minutos) || 0));
   if (!nota && !minutos) throw new ErrorUsuario('Escribe una nota o indica el tiempo.');
 
-  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos, req.usuario.usuario)));
+  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos, req.usuario.usuario), req.usuario.usuario));
 }));
 
 router.post('/incidencias/:id/adjuntos', ruta(async (req, res) => {
@@ -192,7 +202,7 @@ router.post('/incidencias/:id/adjuntos', ruta(async (req, res) => {
 
   if (!/^[A-Za-z0-9+/]+=*$/.test(contenido)) throw new ErrorUsuario('El fichero no ha llegado bien. Vuelve a intentarlo.');
 
-  res.status(201).json(await conSesiones(await incidencias.adjuntar(req.params.id, nombre, contenido, req.usuario.usuario)));
+  res.status(201).json(await conSesiones(await incidencias.adjuntar(req.params.id, nombre, contenido, req.usuario.usuario), req.usuario.usuario));
 }));
 
 router.get('/incidencias/:id/adjuntos/:adjuntoId', ruta(async (req, res) => {
@@ -257,7 +267,7 @@ router.post('/cronometro/parar', ruta(async (req, res) => {
   }
 
   await consulta('DELETE FROM ha_cronometro WHERE usuario_id = ?', [req.usuario.id]);
-  res.json({ minutos: minutos, recortado: reales > minutos, incidencia: await conSesiones(incidencia) });
+  res.json({ minutos: minutos, recortado: reales > minutos, incidencia: await conSesiones(incidencia, req.usuario.usuario) });
 }));
 
 router.post('/cronometro/descartar', ruta(async (req, res) => {
@@ -342,6 +352,7 @@ router.get('/config', ruta(async (req, res) => {
 }));
 
 router.put('/config', ruta(async (req, res) => {
+  await soloGeneral(req);
   res.json(await fact.configGuardar(req.body || {}));
 }));
 
@@ -357,7 +368,8 @@ router.post('/clientes', ruta(async (req, res) => {
 router.get('/exportar-sindri', ruta(async (req, res) => {
   const { datosParaSindri } = require('./exportar-sindri');
   const clientes = await consulta('SELECT * FROM ha_cliente ORDER BY nombre');
-  const trabajos = await sindri.trabajosPendientes();
+  const v = await fact.vista(req.usuario.usuario);
+  const trabajos = (await sindri.trabajosPendientes()).filter(v.esMio);
   const fecha = new Date().toISOString().slice(0, 10);
   res.set('Content-Disposition', `attachment; filename="gestor-para-sindri-${fecha}.json"`);
   res.json(datosParaSindri(await fact.config(), clientes, trabajos));
@@ -365,10 +377,17 @@ router.get('/exportar-sindri', ruta(async (req, res) => {
 
 // Envío automático a Sindri: dónde está, su llave (nunca se devuelve) y cómo fue el último envío.
 router.get('/sindri', ruta(async (req, res) => {
-  res.json(await sindri.estado());
+  res.json(await sindri.estado(req.usuario.usuario));
+}));
+
+// La llave propia: las horas de quien la pone van a su empresa de Sindri.
+router.put('/sindri/mia', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await sindri.guardarMia(req.usuario.usuario, { llave: b.llave, quitar: b.quitar === true }));
 }));
 
 router.put('/sindri', ruta(async (req, res) => {
+  await soloGeneral(req);
   const b = req.body || {};
   res.json(await sindri.guardarConexion({ url: b.url, llave: b.llave, quitar: b.quitar === true }));
 }));
@@ -381,7 +400,7 @@ router.get('/sindri/servicios', ruta(async (req, res) => {
 
 router.post('/sindri/enviar', ruta(async (req, res) => {
   await sindri.sincronizar();
-  res.json(await sindri.estado());
+  res.json(await sindri.estado(req.usuario.usuario));
 }));
 
 // Tareas: dónde está, su llave (nunca se devuelve), el proyecto y cómo fue el último envío.
@@ -390,6 +409,7 @@ router.get('/tareas', ruta(async (req, res) => {
 }));
 
 router.put('/tareas', ruta(async (req, res) => {
+  await soloGeneral(req);
   const b = req.body || {};
   res.json(await tareas.guardarConexion({ url: b.url, llave: b.llave, proyecto: b.proyecto, quitar: b.quitar === true }));
 }));
@@ -402,16 +422,26 @@ router.post('/tareas/enviar', ruta(async (req, res) => {
 /* Horas: sesiones de trabajo y gastos */
 
 router.get('/trabajos', ruta(async (req, res) => {
-  res.json(await fact.trabajos(req.query));
+  res.json(await fact.trabajos(req.query, req.usuario.usuario));
+}));
+
+// A quién dejas ver tus horas y cobros, y quién te deja ver los suyos.
+router.get('/horas/permisos', ruta(async (req, res) => {
+  res.json(await fact.permisos(req.usuario.usuario));
+}));
+
+router.put('/horas/permisos', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await fact.permisoGuardar(req.usuario.usuario, b.usuario, b.ver === true));
 }));
 
 router.post('/trabajos/gasto', ruta(async (req, res) => {
-  await fact.gastoCrear(req.body || {});
+  await fact.gastoCrear(req.body || {}, req.usuario.usuario);
   res.status(201).json({ ok: true });
 }));
 
 router.post('/trabajos/:id/estado', ruta(async (req, res) => {
-  await fact.trabajoEstado(req.params.id, req.body.estado);
+  await fact.trabajoEstado(req.params.id, req.body.estado, req.usuario.usuario);
   res.json({ ok: true });
 }));
 

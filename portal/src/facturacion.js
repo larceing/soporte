@@ -107,7 +107,7 @@ async function codigoLibre(prefijo, fecha) {
 
 // Sesión de trabajo: cada una se redondea a horas enteras con el mínimo
 // configurado, como hacía el gestor antiguo.
-async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha }) {
+async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha, autor }) {
   const cfg = await config();
   const cliente = await clientePorDefecto();
   const horas = horasFacturables(minutos, cfg);
@@ -116,14 +116,14 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
 
   await consulta(
     `INSERT INTO ha_trabajo (codigo, cliente_id, incidencia_id, nota_id, concepto, detalle, dia,
-                             minutos, horas, tarifa, importe, tipo, estado, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', UTC_TIMESTAMP())`,
+                             minutos, horas, tarifa, importe, tipo, estado, autor, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', ?, UTC_TIMESTAMP())`,
     [await codigoLibre('SES', momento), cliente.id, incidenciaId, notaId || null, texto(concepto, 255),
-      texto(detalle, 20000), diaLocal(momento), minutos, horas, tarifa, redondear(horas * tarifa)]
+      texto(detalle, 20000), diaLocal(momento), minutos, horas, tarifa, redondear(horas * tarifa), autor || null]
   );
 }
 
-async function gastoCrear(datos) {
+async function gastoCrear(datos, autor) {
   const concepto = texto(datos.concepto, 255);
   const importe = Number(String(datos.importe || '').replace(',', '.'));
   if (!concepto) throw new ErrorUsuario('Indica el concepto.');
@@ -133,13 +133,59 @@ async function gastoCrear(datos) {
   const dia = esDia(datos.dia) ? datos.dia : diaLocal();
 
   await consulta(
-    `INSERT INTO ha_trabajo (codigo, cliente_id, concepto, detalle, dia, importe, tipo, estado, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, 'UNICO', 'CERRADA', UTC_TIMESTAMP())`,
-    [await codigoLibre('COB'), cliente.id, concepto, texto(datos.detalle, 20000), dia, redondear(importe)]
+    `INSERT INTO ha_trabajo (codigo, cliente_id, concepto, detalle, dia, importe, tipo, estado, autor, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, 'UNICO', 'CERRADA', ?, UTC_TIMESTAMP())`,
+    [await codigoLibre('COB'), cliente.id, concepto, texto(datos.detalle, 20000), dia, redondear(importe), autor || null]
   );
 }
 
-async function trabajos(filtros) {
+// Quién ve qué horas y cobros. Quien tiene su propia empresa de Sindri (ha_sindri_persona) es
+// independiente: lo suyo es solo suyo. Lo de los demás es del grupo general (''). Cada uno ve lo de
+// su grupo y lo de quien le haya dejado verlo (ha_horas_permiso); nadie más ve lo que cobra otro.
+// Un trabajo que ya está en un pedido de Sindri es de la empresa que lo tiene.
+function grupoDe(t, independientes) {
+  const pedido = t.sindri_pedido !== undefined ? t.sindri_pedido : t.sindriPedido;
+  if (pedido) return t.sindri_empresa || '';
+  return t.autor && independientes.has(t.autor) ? t.autor : '';
+}
+
+async function vista(usuario) {
+  const independientes = new Set((await consulta('SELECT usuario FROM ha_sindri_persona')).map(f => f.usuario));
+  const mio = usuario && independientes.has(usuario) ? usuario : '';
+  const dejan = (await consulta('SELECT dueno FROM ha_horas_permiso WHERE usuario = ?', [usuario || ''])).map(f => f.dueno);
+  const veo = new Set([mio, ...dejan]);
+  return {
+    mio,
+    independiente: Boolean(mio),
+    grupo: t => grupoDe(t, independientes),
+    ve: t => veo.has(grupoDe(t, independientes)),
+    esMio: t => grupoDe(t, independientes) === mio
+  };
+}
+
+// A quién deja ver uno sus horas, y quién le deja verlas a él.
+async function permisos(usuario) {
+  const v = await vista(usuario);
+  const dejo = (await consulta('SELECT usuario FROM ha_horas_permiso WHERE dueno = ? ORDER BY usuario', [v.mio])).map(f => f.usuario);
+  const meDejan = (await consulta('SELECT dueno FROM ha_horas_permiso WHERE usuario = ? ORDER BY dueno', [usuario])).map(f => f.dueno || 'general');
+  return { independiente: v.independiente, dejo, meDejan };
+}
+
+async function permisoGuardar(usuario, otro, ver) {
+  const v = await vista(usuario);
+  const o = texto(otro, 100);
+  if (!o) throw new ErrorUsuario('Indica el usuario.');
+  if (o === usuario) throw new ErrorUsuario('Tus horas ya las ves tú.');
+  if (ver) {
+    await consulta('INSERT IGNORE INTO ha_horas_permiso (dueno, usuario, creado_en) VALUES (?, ?, UTC_TIMESTAMP())', [v.mio, o]);
+  } else {
+    await consulta('DELETE FROM ha_horas_permiso WHERE dueno = ? AND usuario = ?', [v.mio, o]);
+  }
+  return permisos(usuario);
+}
+
+// usuario: solo lo que ve esa persona. Sin usuario, todo (uso interno).
+async function trabajos(filtros, usuario) {
   const donde = [];
   const params = [];
 
@@ -158,7 +204,8 @@ async function trabajos(filtros) {
 
   const filas = await consulta(
     `SELECT t.id, t.codigo, t.incidencia_id AS incidenciaId, t.concepto, t.detalle, t.dia, t.minutos,
-            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido, c.nombre AS cliente
+            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
+            t.sindri_empresa, t.autor, c.nombre AS cliente
        FROM ha_trabajo t JOIN ha_cliente c ON c.id = t.cliente_id
       ${donde.length ? 'WHERE ' + donde.join(' AND ') : ''}
       ORDER BY t.dia DESC, t.id DESC`,
@@ -166,7 +213,10 @@ async function trabajos(filtros) {
   );
 
   const ocupados = await trabajosOcupados();
-  return filas.map(f => ({ ...f, situacion: situacionDe(f, ocupados.get(Number(f.id))) }));
+  const v = usuario !== undefined ? await vista(usuario) : null;
+  return filas
+    .filter(f => !v || v.ve(f))
+    .map(({ sindri_empresa, ...f }) => ({ ...f, deOtro: Boolean(v && !v.esMio({ ...f, sindri_empresa })), situacion: situacionDe(f, ocupados.get(Number(f.id))) }));
 }
 
 // En qué punto de la facturación está un trabajo. Lo cobrado o facturado antes en el gestor y lo
@@ -179,11 +229,13 @@ function situacionDe(trabajo, doc) {
   return { clave: 'PENDIENTE', texto: 'Pendiente' };
 }
 
-async function trabajoEstado(id, estado) {
+async function trabajoEstado(id, estado, usuario) {
   if (['CERRADA', 'NO_COBRAR'].indexOf(estado) === -1) throw new ErrorUsuario('Estado no válido.');
 
-  const [trabajo] = await consulta('SELECT id, pago_id, sindri_pedido FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
+  const [trabajo] = await consulta('SELECT id, pago_id, sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
   if (!trabajo) throw new ErrorUsuario('Trabajo no encontrado.', 404);
+  // Lo de otro, aunque te deje verlo, solo lo cambia él.
+  if (usuario !== undefined && !(await vista(usuario)).esMio(trabajo)) throw new ErrorUsuario('Ese trabajo no es tuyo.', 403);
   if (trabajo.pago_id) throw new ErrorUsuario('No se puede cambiar un trabajo ya cobrado.', 409);
   if (trabajo.sindri_pedido) throw new ErrorUsuario('No se puede cambiar: el trabajo está en el pedido ' + trabajo.sindri_pedido + ' de Sindri.', 409);
 
@@ -217,5 +269,6 @@ async function trabajosOcupados() {
 module.exports = {
   config, configGuardar,
   clientes, clienteGuardar,
-  trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados
+  trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
+  grupoDe, vista, permisos, permisoGuardar
 };

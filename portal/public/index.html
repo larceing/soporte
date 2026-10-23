@@ -372,6 +372,30 @@
             </div>
 
             <div id="mensajeSindri" class="message hidden"></div>
+
+            <h4 style="margin-top:20px">Tu llave: tus horas a tu empresa</h4>
+            <p class="det-desc">Si trabajas para tu propia empresa de Sindri, crea allí (Empresa → Integraciones) una llave «incidencias» y ponla aquí. Las horas y cobros que apuntes tú irán a tu empresa; lo de los demás sigue yendo a la empresa de arriba. Si la quitas, lo tuyo espera sin enviarse.</p>
+            <div class="grid">
+              <div class="field"><label for="sindriMiaLlave">Tu llave de integración</label><input id="sindriMiaLlave" type="password" autocomplete="off" placeholder="sdi_…"></div>
+            </div>
+            <p id="sindriMiaEstado" class="det-desc" style="margin-top:12px"></p>
+            <div class="actions">
+              <button type="button" class="btn btn-primary" onclick="sindriMiaGuardar()">Guardar mi llave</button>
+              <button type="button" class="btn btn-secondary" id="sindriMiaQuitarBtn" onclick="sindriMiaQuitar()">Quitar mi llave</button>
+            </div>
+            <div id="mensajeSindriMia" class="message hidden"></div>
+
+            <h4 style="margin-top:20px">Quién ve tus horas y cobros</h4>
+            <p class="det-desc">Nadie ve lo que cobra otro. Si quieres que alguien vea tus horas y su importe (sin poder cambiarlas), añádelo aquí.</p>
+            <p id="horasPermisosEstado" class="det-desc"></p>
+            <div class="grid">
+              <div class="field"><label for="horasPermisoUsuario">Usuario</label><input id="horasPermisoUsuario" autocomplete="off" placeholder="p. ej. luis"></div>
+            </div>
+            <div class="actions">
+              <button type="button" class="btn btn-secondary" onclick="horasPermiso(true)">Dejarle ver</button>
+              <button type="button" class="btn btn-secondary" onclick="horasPermiso(false)">Quitárselo</button>
+            </div>
+            <div id="mensajeHorasPermisos" class="message hidden"></div>
           </div>
 
           <div class="panel">

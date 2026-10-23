@@ -30,7 +30,8 @@ function mesAnterior(hoy) {
   };
 }
 
-async function datos() {
+// usuario: el resumen de lo que ve esa persona (sus horas y lo que le dejen ver).
+async function datos(usuario) {
   const hoy = diaLocal();
   const mes = mesAnterior(hoy);
   const cfg = await fact.config();
@@ -44,8 +45,8 @@ async function datos() {
   }
 
   const abiertas = incidencias ? incidencias.filter(i => i.abierta) : [];
-  const pendientes = (await fact.trabajos({ cobro: 'PENDIENTE' })).filter(t => t.situacion.clave === 'PENDIENTE');
-  const delMes = (await fact.trabajos({ desde: mes.desde, hasta: mes.hasta })).filter(t => t.estado !== 'NO_COBRAR');
+  const pendientes = (await fact.trabajos({ cobro: 'PENDIENTE' }, usuario || '')).filter(t => t.situacion.clave === 'PENDIENTE');
+  const delMes = (await fact.trabajos({ desde: mes.desde, hasta: mes.hasta }, usuario || '')).filter(t => t.estado !== 'NO_COBRAR');
 
   return {
     hoy: hoy,
@@ -112,8 +113,8 @@ function bloques(d) {
   return b.concat(correo.abrirGestor('', 'Abrir el gestor'));
 }
 
-async function enviar(para) {
-  const d = await datos();
+async function enviar(para, usuario) {
+  const d = await datos(usuario);
   return correo.enviar({
     para: para,
     asunto: 'Resumen mensual · ' + dinero(d.pendiente.importe, d.moneda) + ' pendientes de facturar',
@@ -135,13 +136,13 @@ async function comprobar() {
   const [ultimo] = await consulta('SELECT valor FROM ha_config WHERE clave = ?', [CLAVE_ULTIMO]);
   if (ultimo && ultimo.valor === mes) return;
 
-  const destinatarios = await consulta("SELECT email FROM ha_usuario WHERE email <> ''");
+  const destinatarios = await consulta("SELECT usuario, email FROM ha_usuario WHERE email <> ''");
   if (!destinatarios.length) return;
 
   // Se marca antes de enviar: es preferible perder un resumen que mandarlo en bucle.
   await consulta('INSERT INTO ha_config (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)', [CLAVE_ULTIMO, mes]);
   for (const d of destinatarios) {
-    const r = await enviar(d.email);
+    const r = await enviar(d.email, d.usuario);
     console.log('Resumen mensual a ' + d.email + ': ' + (r.enviado ? 'enviado' : r.motivo));
   }
 }

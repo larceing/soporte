@@ -9,7 +9,17 @@ const path = require('path');
 const config = new Map([['TARIFA_HORA', '15'], ['IVA', '10']]);
 let trabajos = [];
 const clientes = [{ id: 1, nombre: 'Cliente', razon_social: 'Cliente SL', nif: 'B-11111111', activo: 1 }];
+const personasLlave = new Map();
+const permisos = [];
 async function consulta(sql, p = []) {
+  if (/SELECT dueno FROM ha_horas_permiso WHERE usuario/.test(sql)) return permisos.filter(x => x.usuario === p[0]).map(x => ({ dueno: x.dueno }));
+  if (/SELECT usuario FROM ha_horas_permiso WHERE dueno/.test(sql)) return permisos.filter(x => x.dueno === p[0]).map(x => ({ usuario: x.usuario }));
+  if (/INSERT IGNORE INTO ha_horas_permiso/.test(sql)) { if (!permisos.some(x => x.dueno === p[0] && x.usuario === p[1])) permisos.push({ dueno: p[0], usuario: p[1] }); return []; }
+  if (/DELETE FROM ha_horas_permiso/.test(sql)) { permisos.splice(0, permisos.length, ...permisos.filter(x => !(x.dueno === p[0] && x.usuario === p[1]))); return []; }
+  if (/SELECT usuario FROM ha_sindri_persona/.test(sql)) return [...personasLlave.keys()].map(usuario => ({ usuario }));
+  if (/FROM ha_trabajo WHERE id = \?/.test(sql)) return trabajos.filter(t => t.id === p[0]);
+  if (/FROM ha_sindri_persona/.test(sql)) return [...personasLlave].map(([usuario, llave]) => ({ usuario, llave }));
+  if (/INSERT INTO ha_sindri_persona/.test(sql)) { personasLlave.set(p[0], p.length > 1 ? p[1] : ''); return []; }
   if (/DELETE FROM ha_config/.test(sql)) { config.delete('SINDRI_LLAVE'); return []; }
   if (/FROM ha_config WHERE clave IN/.test(sql)) return [...config].filter(([k]) => k.startsWith('SINDRI_')).map(([clave, valor]) => ({ clave, valor }));
   if (/FROM ha_config/.test(sql)) return [...config].map(([clave, valor]) => ({ clave, valor }));
@@ -17,8 +27,8 @@ async function consulta(sql, p = []) {
   if (/FROM ha_cliente/.test(sql)) return clientes;
   if (/FROM ha_documento/.test(sql)) return [];
   if (/FROM ha_trabajo/.test(sql)) return trabajos.filter(t => t.estado === 'CERRADA' && !t.pago_id);
-  if (/UPDATE ha_trabajo SET sindri_pedido = \? WHERE codigo/.test(sql)) { trabajos.filter(t => t.codigo === p[1]).forEach(t => { t.sindri_pedido = p[0]; }); return []; }
-  if (/UPDATE ha_trabajo SET sindri_pedido = NULL/.test(sql)) { trabajos.filter(t => !(p[0] || []).includes(t.codigo)).forEach(t => { t.sindri_pedido = null; }); return []; }
+  if (/UPDATE ha_trabajo SET sindri_pedido = \?, sindri_empresa = \? WHERE codigo/.test(sql)) { trabajos.filter(t => t.codigo === p[2]).forEach(t => { t.sindri_pedido = p[0]; t.sindri_empresa = p[1]; }); return []; }
+  if (/UPDATE ha_trabajo SET sindri_pedido = NULL/.test(sql)) { trabajos.filter(t => t.sindri_pedido && (t.sindri_empresa || '') === p[0] && !(p[1] || []).includes(t.codigo)).forEach(t => { t.sindri_pedido = null; }); return []; }
   throw new Error('Consulta no prevista: ' + sql);
 }
 require.cache[path.join(__dirname, '../src/db.js')] = { id: 'db', loaded: true, exports: { consulta } };
@@ -29,7 +39,10 @@ const fact = require('../src/facturacion');
 
 // Sindri de mentira: lo pendiente por referencia, como su API de integración.
 const LLAVE = 'sdi_prueba';
-const enSindri = new Map();
+const LLAVE_IVAN = 'sdi_ivan';
+const enSindriLuis = new Map();
+const enSindri = enSindriLuis;
+const enSindriIvan = new Map();
 let conAltas = false;
 const clientesSindri = [{ id: '0f0e0d0c-0000-4000-8000-000000000001', name: 'Cliente SL', tax_id: 'B11111111' }];
 const productosSindri = [{ sku: 'MIO', name: 'Mi servicio', kind: 'service', uom: 'h' }, { sku: 'CAJA', name: 'Caja', kind: 'stockable', uom: 'ud' }];
@@ -38,9 +51,11 @@ const servidor = http.createServer((req, res) => {
   req.on('data', c => { cuerpo += c; });
   req.on('end', () => {
     const responder = (s, d) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(d)); };
-    if (req.headers.authorization !== 'Bearer ' + LLAVE) return responder(401, { error: 'Llave no válida' });
+    const ivan = req.headers.authorization === 'Bearer ' + LLAVE_IVAN;
+    if (!ivan && req.headers.authorization !== 'Bearer ' + LLAVE) return responder(401, { error: 'Llave no válida' });
+    const enSindri = ivan ? enSindriIvan : enSindriLuis;
     const u = req.url.replace('/api/integracion/v1', '');
-    if (u === '/yo') return responder(200, { app: 'incidencias', empresa: { name: 'Mi empresa' } });
+    if (u === '/yo') return responder(200, { app: 'incidencias', empresa: ivan ? { code: '002', name: 'Empresa de Ivan' } : { code: '001', name: 'Mi empresa' } });
     if (u === '/clientes' && req.method === 'POST') {
       if (!conAltas) return responder(404, {});
       const b = JSON.parse(cuerpo);
@@ -173,6 +188,56 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   assert.deepStrictEqual(elegir.servicios.at(-1), { sku: 'MIO', name: 'Mi servicio', area: 'Otros' });
   assert.strictEqual(elegir.servicios.find(s => s.sku === 'SOP-INC').name, 'Incidencias (Sindri)');
   assert.ok(elegir.servicios.find(s => s.sku === 'INF-DOCKER'));
+
+  // Dos técnicos, cada uno con su empresa: las horas de Ivan van a la suya y salen de la general.
+  await assert.rejects(sindri.guardarMia('ivan', { llave: LLAVE }), /misma empresa/);
+  await assert.rejects(sindri.guardarMia('ivan', { llave: 'falsa' }), /no acepta/);
+  trabajos.push({ ...base, id: 6, codigo: 'SES-6', horas: 2, concepto: 'De Ivan', autor: 'ivan' });
+  await sindri.sincronizar();
+  assert.ok(enSindri.has('SES-6'));
+  let e = await sindri.guardarMia('ivan', { llave: LLAVE_IVAN });
+  assert.strictEqual(e.mia.configurada, true);
+  assert.ok(!JSON.stringify(e).includes(LLAVE_IVAN));
+  r = await sindri.sincronizar();
+  assert.strictEqual(r.ok, true, r.error);
+  assert.ok(!enSindri.has('SES-6'));
+  assert.ok(enSindriIvan.has('SES-6'));
+  assert.ok(!enSindriIvan.has('SES-1'));
+  e = await sindri.estado('ivan');
+  assert.strictEqual(e.mia.ultima.empresa, 'Empresa de Ivan');
+  assert.deepStrictEqual(e.personas, ['ivan']);
+  assert.strictEqual((await sindri.estado('luis')).mia.configurada, false);
+  // Un pedido de Ivan queda marcado con su empresa y la general no se lo quita.
+  enSindriIvan.get('SES-6').estado = 'en_pedido';
+  enSindriIvan.get('SES-6').pedido = 'PV-I1';
+  await sindri.sincronizar();
+  assert.strictEqual(trabajos.find(t => t.id === 6).sindri_pedido, 'PV-I1');
+  assert.strictEqual(trabajos.find(t => t.id === 6).sindri_empresa, 'ivan');
+  // Si Ivan quita su llave, lo suyo espera: no pasa a la empresa general.
+  trabajos.push({ ...base, id: 7, codigo: 'SES-7', horas: 1, concepto: 'Más de Ivan', autor: 'ivan' });
+  e = await sindri.guardarMia('ivan', { quitar: true });
+  assert.strictEqual(e.mia.enEspera, true);
+  await sindri.sincronizar();
+  assert.ok(!enSindri.has('SES-7'));
+  assert.ok(!enSindriIvan.has('SES-7'));
+  assert.strictEqual(trabajos.find(t => t.id === 6).sindri_pedido, 'PV-I1');
+
+  // Ninguno ve lo que cobra el otro, salvo que se lo deje ver.
+  const codigos = l => l.map(t => t.codigo).sort();
+  assert.deepStrictEqual(codigos(await fact.trabajos({}, 'ivan')), ['SES-6', 'SES-7']);
+  assert.ok(!codigos(await fact.trabajos({}, 'luis')).some(c => c === 'SES-6' || c === 'SES-7'));
+  assert.ok(codigos(await fact.trabajos({}, 'luis')).includes('SES-1'));
+  assert.strictEqual((await sindri.estado('ivan')).ultima, null);
+  assert.ok((await sindri.estado('luis')).ultima);
+  let p = await fact.permisoGuardar('ivan', 'luis', true);
+  assert.deepStrictEqual(p.dejo, ['luis']);
+  const visto = (await fact.trabajos({}, 'luis')).find(t => t.codigo === 'SES-7');
+  assert.ok(visto && visto.deOtro);
+  await assert.rejects(fact.trabajoEstado(7, 'NO_COBRAR', 'luis'), /no es tuyo/);
+  assert.ok(!(await fact.trabajos({}, 'ivan')).some(t => t.codigo === 'SES-1'));
+  p = await fact.permisoGuardar('ivan', 'luis', false);
+  assert.deepStrictEqual(p.dejo, []);
+  assert.ok(!(await fact.trabajos({}, 'luis')).some(t => t.codigo === 'SES-7'));
 
   // Quitar la llave apaga el envío.
   await sindri.guardarConexion({ quitar: true });
