@@ -135,7 +135,8 @@ async function sesionEstado(id, estado) {
 async function ajustesCargar() {
   const resultados = await Promise.all([api('GET', '/config'), api('GET', '/clientes'), api('GET', '/cuenta')]);
   const cfg = resultados[0];
-  const cliente = resultados[1][0] || {};
+  // Tu cliente: el primero tuyo; los que te comparten no se cambian aquí.
+  const cliente = resultados[1].find(function(c) { return !c.deOtro; }) || {};
   const cuenta = resultados[2];
 
   document.getElementById('cuentaEmail').value = cuenta.email || '';
@@ -241,24 +242,53 @@ function sindriPintar(e) {
     : m.ultima ? sindriResumen(m.ultima) : 'Guardada. El primer envío a tu empresa sale en unos segundos.';
 }
 
-async function horasPermisosPintar(p) {
+const QUE_TEXTO = { horas: 'horas y cobros', clientes: 'clientes', incidencias: 'incidencias' };
+
+function horasPermisosPintar(p) {
+  const agrupar = function(lista, quien) {
+    const por = {};
+    lista.forEach(function(x) { (por[x[quien]] = por[x[quien]] || []).push(QUE_TEXTO[x.que] || x.que); });
+    return Object.keys(por).map(function(k) { return k + ' (' + por[k].join(', ') + ')'; }).join('; ');
+  };
   const partes = [];
-  partes.push(p.dejo.length ? 'Ven tus horas: ' + p.dejo.join(', ') + '.' : 'Nadie más ve tus horas.');
-  if (p.meDejan.length) partes.push('Tú ves las de: ' + p.meDejan.join(', ') + '.');
+  partes.push(p.dejo.length ? 'Compartes con: ' + agrupar(p.dejo, 'usuario') + '.' : 'No compartes nada con nadie.');
+  if (p.meDejan.length) partes.push('Te comparten: ' + agrupar(p.meDejan, 'de') + '.');
   document.getElementById('horasPermisosEstado').textContent = partes.join(' ');
 }
 
 async function horasPermisosCargar() {
-  try { horasPermisosPintar(await api('GET', '/horas/permisos')); } catch (err) { coreMensaje('mensajeHorasPermisos', err.message, 'error'); }
+  try { horasPermisosPintar(await api('GET', '/compartir')); } catch (err) { coreMensaje('mensajeHorasPermisos', err.message, 'error'); }
+  try { tarifaPintar(await api('GET', '/horas/tarifa')); } catch (err) { coreMensaje('mensajeTarifa', err.message, 'error'); }
 }
 
 async function horasPermiso(ver) {
   try {
-    horasPermisosPintar(await api('PUT', '/horas/permisos', { usuario: document.getElementById('horasPermisoUsuario').value, ver: ver }));
+    horasPermisosPintar(await api('PUT', '/compartir', {
+      usuario: document.getElementById('horasPermisoUsuario').value,
+      que: document.getElementById('horasPermisoQue').value,
+      ver: ver
+    }));
     document.getElementById('horasPermisoUsuario').value = '';
-    coreMensaje('mensajeHorasPermisos', ver ? 'Hecho: ya puede ver tus horas.' : 'Hecho: ya no las ve.', 'ok');
+    coreMensaje('mensajeHorasPermisos', ver ? 'Compartido.' : 'Ya no lo compartes.', 'ok');
   } catch (err) {
     coreMensaje('mensajeHorasPermisos', err.message, 'error');
+  }
+}
+
+function tarifaPintar(t) {
+  document.getElementById('tarifaPropia').value = t.tarifa == null ? '' : t.tarifa;
+  document.getElementById('tarifaPropia').placeholder = 'Por defecto ' + t.porDefecto;
+  document.getElementById('tarifaEstado').textContent = 'La de tus sesiones nuevas: ' + fmtDinero(t.seAplica) + ' por hora' +
+    (t.tarifa == null ? ' (por defecto; pon la tuya)' : '') +
+    (t.independiente ? '.' : '. Si el cliente tiene su propia tarifa, manda la del cliente.');
+}
+
+async function tarifaGuardar() {
+  try {
+    tarifaPintar(await api('PUT', '/horas/tarifa', { tarifa: document.getElementById('tarifaPropia').value }));
+    coreMensaje('mensajeTarifa', 'Tarifa guardada.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeTarifa', err.message, 'error');
   }
 }
 

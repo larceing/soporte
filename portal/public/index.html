@@ -385,15 +385,28 @@
             </div>
             <div id="mensajeSindriMia" class="message hidden"></div>
 
-            <h4 style="margin-top:20px">Quién ve tus horas y cobros</h4>
-            <p class="det-desc">Nadie ve lo que cobra otro. Si quieres que alguien vea tus horas y su importe (sin poder cambiarlas), añádelo aquí.</p>
+            <h4 style="margin-top:20px">Tu tarifa por hora</h4>
+            <p id="tarifaEstado" class="det-desc"></p>
+            <div class="grid">
+              <div class="field"><label for="tarifaPropia">Tarifa hora</label><input id="tarifaPropia" type="number" step="0.01" min="0"></div>
+            </div>
+            <div class="actions">
+              <button type="button" class="btn btn-secondary" onclick="tarifaGuardar()">Guardar mi tarifa</button>
+            </div>
+            <div id="mensajeTarifa" class="message hidden"></div>
+
+            <h4 style="margin-top:20px">Qué compartes</h4>
+            <p class="det-desc">Cada uno trabaja con lo suyo: sus clientes, sus incidencias y sus horas. Comparte con otra persona lo que quieras. Clientes: los puede usar, no cambiar. Incidencias: las ve y trabaja en ellas, y las horas que apunte van a su empresa. Horas: ve tus horas y su importe, sin cambiarlas.</p>
             <p id="horasPermisosEstado" class="det-desc"></p>
             <div class="grid">
               <div class="field"><label for="horasPermisoUsuario">Usuario</label><input id="horasPermisoUsuario" autocomplete="off" placeholder="p. ej. luis"></div>
+              <div class="field"><label for="horasPermisoQue">Qué</label>
+                <select id="horasPermisoQue"><option value="incidencias">Incidencias</option><option value="clientes">Clientes</option><option value="horas">Horas y cobros</option></select>
+              </div>
             </div>
             <div class="actions">
-              <button type="button" class="btn btn-secondary" onclick="horasPermiso(true)">Dejarle ver</button>
-              <button type="button" class="btn btn-secondary" onclick="horasPermiso(false)">Quitárselo</button>
+              <button type="button" class="btn btn-secondary" onclick="horasPermiso(true)">Compartir</button>
+              <button type="button" class="btn btn-secondary" onclick="horasPermiso(false)">Dejar de compartir</button>
             </div>
             <div id="mensajeHorasPermisos" class="message hidden"></div>
           </div>

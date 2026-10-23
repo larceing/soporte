@@ -44,7 +44,8 @@ async function datos(usuario) {
     incidencias = null;
   }
 
-  const abiertas = incidencias ? incidencias.filter(i => i.abierta) : [];
+  const v = await fact.vista(usuario || '');
+  const abiertas = incidencias ? incidencias.filter(i => i.abierta && v.veDe('incidencias', i.dueno)) : [];
   const pendientes = (await fact.trabajos({ cobro: 'PENDIENTE' }, usuario || '')).filter(t => t.situacion.clave === 'PENDIENTE');
   const delMes = (await fact.trabajos({ desde: mes.desde, hasta: mes.hasta }, usuario || '')).filter(t => t.estado !== 'NO_COBRAR');
 

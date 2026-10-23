@@ -111,9 +111,22 @@ router.get('/catalogo', ruta(async (req, res) => {
   res.json({ tipos: TIPOS, estados: incidencias.ESTADOS, prioridades: incidencias.PRIORIDADES });
 }));
 
+// Cada uno ve las incidencias de su grupo y las que le compartan (src/facturacion.js, vista).
 router.get('/incidencias', ruta(async (req, res) => {
-  res.json(await incidencias.listar());
+  const v = await fact.vista(req.usuario.usuario);
+  res.json((await incidencias.listar()).filter(i => v.veDe('incidencias', i.dueno)));
 }));
+
+// Antes de tocar o enseñar una incidencia: que sea suya o se la hayan compartido.
+async function accesoIncidencia(req, id) {
+  const [fila] = await consulta('SELECT dueno FROM ha_incidencia WHERE id = ?', [Number(id) || 0]);
+  if (fila && !(await fact.vista(req.usuario.usuario)).veDe('incidencias', fila.dueno)) {
+    throw new ErrorUsuario('Incidencia no encontrada.', 404);
+  }
+}
+router.all(['/incidencias/:id', '/incidencias/:id/*'], (req, res, next) => {
+  accesoIncidencia(req, req.params.id).then(() => next(), next);
+});
 
 router.post('/incidencias', ruta(async (req, res) => {
   const tipo = TIPOS.includes(req.body.tipo) ? req.body.tipo : TIPOS[0];
@@ -130,7 +143,8 @@ router.post('/incidencias', ruta(async (req, res) => {
     descripcion: texto(req.body.descripcion, 20000),
     prioridad: prioridad,
     limite: req.body.limite || '',
-    autor: req.usuario.usuario
+    autor: req.usuario.usuario,
+    dueno: (await fact.vista(req.usuario.usuario)).mio
   }), req.usuario.usuario));
 }));
 
@@ -225,6 +239,7 @@ router.post('/cronometro/iniciar', ruta(async (req, res) => {
     throw new ErrorUsuario('Ya hay un cronómetro en marcha. Páralo antes de empezar otro.', 409);
   }
 
+  await accesoIncidencia(req, req.body.incidenciaId);
   let incidencia = await incidencias.obtener(req.body.incidenciaId);
   if (!incidencia.abierta) {
     throw new ErrorUsuario('La incidencia está ' + incidencia.estadoTexto.toLowerCase() +
@@ -311,6 +326,7 @@ router.post('/correo/enviar', ruta(async (req, res) => {
   const c = correoDe(req.body || {}, true);
 
   // Si va ligado a una incidencia, tiene que existir antes de enviar nada.
+  if (req.body.incidenciaId) await accesoIncidencia(req, req.body.incidenciaId);
   const incidenciaId = req.body.incidenciaId ? (await incidencias.obtener(req.body.incidenciaId)).id : null;
 
   const resultado = await correo.personal(c);
@@ -341,7 +357,8 @@ router.post('/correo/enviar', ruta(async (req, res) => {
 router.get('/correo/enviados', ruta(async (req, res) => {
   res.json(await consulta(
     `SELECT id, incidencia_id AS incidenciaId, adjunto, para, asunto, mensaje, enviado_en AS enviadoEn
-       FROM ha_correo ORDER BY id DESC LIMIT 100`
+       FROM ha_correo WHERE usuario_id = ? ORDER BY id DESC LIMIT 100`,
+    [req.usuario.id]
   ));
 }));
 
@@ -357,11 +374,11 @@ router.put('/config', ruta(async (req, res) => {
 }));
 
 router.get('/clientes', ruta(async (req, res) => {
-  res.json(await fact.clientes());
+  res.json(await fact.clientes(req.usuario.usuario));
 }));
 
 router.post('/clientes', ruta(async (req, res) => {
-  res.json(await fact.clienteGuardar(req.body || {}));
+  res.json(await fact.clienteGuardar(req.body || {}, req.usuario.usuario));
 }));
 
 // Emisor, clientes y tarifa en el formato que importa Sindri (Empresa → Llevar y traer datos).
@@ -425,14 +442,23 @@ router.get('/trabajos', ruta(async (req, res) => {
   res.json(await fact.trabajos(req.query, req.usuario.usuario));
 }));
 
-// A quién dejas ver tus horas y cobros, y quién te deja ver los suyos.
-router.get('/horas/permisos', ruta(async (req, res) => {
+// Tu tarifa por hora: la de tus sesiones nuevas.
+router.get('/horas/tarifa', ruta(async (req, res) => {
+  res.json(await fact.tarifaVer(req.usuario.usuario));
+}));
+
+router.put('/horas/tarifa', ruta(async (req, res) => {
+  res.json(await fact.tarifaGuardar(req.usuario.usuario, (req.body || {}).tarifa));
+}));
+
+// Qué compartes (horas, clientes, incidencias) y con quién, y qué te comparten a ti.
+router.get('/compartir', ruta(async (req, res) => {
   res.json(await fact.permisos(req.usuario.usuario));
 }));
 
-router.put('/horas/permisos', ruta(async (req, res) => {
+router.put('/compartir', ruta(async (req, res) => {
   const b = req.body || {};
-  res.json(await fact.permisoGuardar(req.usuario.usuario, b.usuario, b.ver === true));
+  res.json(await fact.permisoGuardar(req.usuario.usuario, b.usuario, b.que, b.ver === true));
 }));
 
 router.post('/trabajos/gasto', ruta(async (req, res) => {
