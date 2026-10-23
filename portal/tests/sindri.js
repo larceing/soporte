@@ -18,6 +18,7 @@ async function consulta(sql, p = []) {
   if (/SELECT usuario, que FROM ha_compartir WHERE dueno/.test(sql)) return permisos.filter(x => x.dueno === p[0]);
   if (/INSERT IGNORE INTO ha_compartir/.test(sql)) { if (!permisos.some(x => x.dueno === p[0] && x.usuario === p[1] && x.que === p[2])) permisos.push({ dueno: p[0], usuario: p[1], que: p[2] }); return []; }
   if (/DELETE FROM ha_compartir/.test(sql)) { permisos.splice(0, permisos.length, ...permisos.filter(x => !(x.dueno === p[0] && x.usuario === p[1] && x.que === p[2]))); return []; }
+  if (/SELECT cliente_id FROM ha_incidencia/.test(sql)) return [];
   if (/FROM ha_tarifa_persona/.test(sql)) return tarifas.has(p[0]) ? [{ tarifa: tarifas.get(p[0]) }] : [];
   if (/INSERT INTO ha_tarifa_persona/.test(sql)) { tarifas.set(p[0], p[1]); return []; }
   if (/DELETE FROM ha_tarifa_persona/.test(sql)) { tarifas.delete(p[0]); return []; }

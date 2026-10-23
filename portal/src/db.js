@@ -216,6 +216,8 @@ const TABLAS = [
   // trabaja con su propia empresa) y qué comparte cada uno con quién (src/facturacion.js, vista).
   `ALTER TABLE ha_cliente ADD COLUMN IF NOT EXISTS dueno VARCHAR(100) NOT NULL DEFAULT ''`,
   `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS dueno VARCHAR(100) NOT NULL DEFAULT ''`,
+  // A qué cliente se cobra lo de cada incidencia (vacío: el cliente por defecto de quien trabaja).
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS cliente_id INT UNSIGNED NULL`,
   `CREATE TABLE IF NOT EXISTS ha_compartir (
      dueno VARCHAR(100) NOT NULL,
      usuario VARCHAR(100) NOT NULL,
