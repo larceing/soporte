@@ -52,7 +52,14 @@ async function guardarConexion({ url, llave, quitar }) {
       e.status = 400;
       throw e;
     }
-    await poner('SINDRI_URL', u.slice(0, 500));
+    // Una llave guardada no viaja a otra dirección: si cambia la URL y no llega llave nueva,
+    // se borra la de antes y hay que escribirla otra vez.
+    const antes = (await consulta("SELECT clave, valor FROM ha_config WHERE clave IN ('SINDRI_URL')")).find(f => f.clave === 'SINDRI_URL');
+    const nueva = u.slice(0, 500);
+    if (antes && antes.valor && sinBarra(antes.valor) !== nueva && !(llave && String(llave).trim())) {
+      await consulta("DELETE FROM ha_config WHERE clave = 'SINDRI_LLAVE'");
+    }
+    await poner('SINDRI_URL', nueva);
   }
   if (llave && String(llave).trim()) await poner('SINDRI_LLAVE', String(llave).trim().slice(0, 200));
   ultima = null;

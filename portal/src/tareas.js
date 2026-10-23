@@ -49,7 +49,14 @@ async function guardarConexion({ url, llave, proyecto, quitar }) {
       e.status = 400;
       throw e;
     }
-    await poner('TAREAS_URL', u.slice(0, 500));
+    // Una llave guardada no viaja a otra dirección: si cambia la URL y no llega llave nueva,
+    // se borra la de antes y hay que escribirla otra vez.
+    const antes = (await consulta("SELECT clave, valor FROM ha_config WHERE clave IN ('TAREAS_URL')")).find(f => f.clave === 'TAREAS_URL');
+    const nueva = u.slice(0, 500);
+    if (antes && antes.valor && base(antes.valor) !== nueva && !(llave && String(llave).trim())) {
+      await consulta("DELETE FROM ha_config WHERE clave = 'TAREAS_LLAVE'");
+    }
+    await poner('TAREAS_URL', nueva);
   }
   if (proyecto !== undefined) await poner('TAREAS_PROYECTO', String(proyecto).trim().slice(0, 100));
   if (llave && String(llave).trim()) await poner('TAREAS_LLAVE', String(llave).trim().slice(0, 200));
