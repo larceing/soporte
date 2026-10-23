@@ -37,25 +37,34 @@ async function configGuardar(datos) {
 
 /* Clientes */
 
-async function clientes() {
-  return consulta('SELECT * FROM ha_cliente WHERE activo = 1 ORDER BY nombre');
+// usuario: los clientes que ve esa persona (los de su grupo y los que le compartan). Sin usuario,
+// todos (uso interno). Cada fila dice si es de otro (deOtro): se usa, pero no se cambia.
+async function clientes(usuario) {
+  const todos = await consulta('SELECT * FROM ha_cliente WHERE activo = 1 ORDER BY nombre');
+  if (usuario === undefined) return todos;
+  const v = await vista(usuario);
+  return todos.filter(c => v.veDe('clientes', c.dueno)).map(c => ({ ...c, deOtro: (c.dueno || '') !== v.mio }));
 }
 
-// Mientras solo haya un cliente, todo el trabajo es suyo.
-async function clientePorDefecto() {
-  const lista = await clientes();
+// El cliente de un trabajo nuevo: el primero de su grupo; si no tiene, el primero que le compartan.
+async function clientePorDefecto(usuario) {
+  const lista = await clientes(usuario);
+  const v = usuario !== undefined ? await vista(usuario) : null;
+  const propio = v ? lista.find(c => (c.dueno || '') === v.mio) : null;
   if (!lista.length) throw new ErrorUsuario('Da de alta un cliente en Ajustes antes de registrar trabajo.');
-  return lista[0];
+  return propio || lista[0];
 }
 
-async function clientePorId(id) {
-  if (!id) return clientePorDefecto();
+async function clientePorId(id, usuario) {
+  if (!id) return clientePorDefecto(usuario);
   const filas = await consulta('SELECT * FROM ha_cliente WHERE id = ?', [Number(id)]);
   if (!filas.length) throw new ErrorUsuario('Cliente no encontrado.', 404);
+  if (usuario !== undefined && !(await vista(usuario)).veDe('clientes', filas[0].dueno)) throw new ErrorUsuario('Cliente no encontrado.', 404);
   return filas[0];
 }
 
-async function clienteGuardar(datos) {
+async function clienteGuardar(datos, usuario) {
+  const v = await vista(usuario);
   const nombre = texto(datos.nombre, 120);
   if (!nombre) throw new ErrorUsuario('Indica el nombre del cliente.');
 
@@ -67,19 +76,23 @@ async function clienteGuardar(datos) {
   ];
 
   if (datos.id) {
+    const [antes] = await consulta('SELECT dueno FROM ha_cliente WHERE id = ?', [Number(datos.id)]);
+    if (!antes || (antes.dueno || '') !== v.mio) throw new ErrorUsuario('Ese cliente no es tuyo: lo cambia quien lo dio de alta.', 403);
     await consulta(
       `UPDATE ha_cliente SET nombre = ?, razon_social = ?, nif = ?, direccion = ?, tarifa_hora = ?,
               telefono = ?, email = ?, contacto = ?, notas = ? WHERE id = ?`,
       [...valores, Number(datos.id)]
     );
   } else {
+    const [ya] = await consulta('SELECT id FROM ha_cliente WHERE nombre = ?', [nombre]);
+    if (ya) throw new ErrorUsuario('Ya hay un cliente con ese nombre. Si es de otra persona, pídele que te lo comparta.', 409);
     await consulta(
-      `INSERT INTO ha_cliente (nombre, razon_social, nif, direccion, tarifa_hora, telefono, email, contacto, notas)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      valores
+      `INSERT INTO ha_cliente (nombre, razon_social, nif, direccion, tarifa_hora, telefono, email, contacto, notas, dueno)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [...valores, v.mio]
     );
   }
-  return clientes();
+  return clientes(usuario);
 }
 
 /* Trabajos */
@@ -91,6 +104,51 @@ function horasFacturables(minutos, cfg) {
 
 function tarifaDe(cliente, cfg) {
   return Number(cliente.tarifa_hora) > 0 ? Number(cliente.tarifa_hora) : Number(cfg.TARIFA_HORA || 0);
+}
+
+// Tarifa por hora de cada persona (ha_tarifa_persona). Quien trabaja con su propia empresa cobra
+// la suya y, si no ha puesto ninguna, 1: la de la ficha del cliente y la general son de quien lleva
+// el gestor. En el grupo general manda la del cliente; si no tiene, la de la persona y, si tampoco,
+// la general de Ajustes.
+const TARIFA_PROPIA_DEFECTO = 1;
+
+async function tarifaPersona(usuario) {
+  if (!usuario) return null;
+  const [f] = await consulta('SELECT tarifa FROM ha_tarifa_persona WHERE usuario = ?', [usuario]);
+  return f && Number(f.tarifa) > 0 ? Number(f.tarifa) : null;
+}
+
+async function tarifaPara(autor, cliente, cfg) {
+  const propia = await tarifaPersona(autor);
+  if ((await vista(autor)).independiente) return propia || TARIFA_PROPIA_DEFECTO;
+  if (Number(cliente.tarifa_hora) > 0) return Number(cliente.tarifa_hora);
+  return propia || Number(cfg.TARIFA_HORA || 0);
+}
+
+async function tarifaVer(usuario) {
+  const v = await vista(usuario);
+  const propia = await tarifaPersona(usuario);
+  const cfg = await config();
+  return {
+    tarifa: propia,
+    independiente: v.independiente,
+    seAplica: propia || (v.independiente ? TARIFA_PROPIA_DEFECTO : Number(cfg.TARIFA_HORA || 0)),
+    porDefecto: v.independiente ? TARIFA_PROPIA_DEFECTO : Number(cfg.TARIFA_HORA || 0)
+  };
+}
+
+async function tarifaGuardar(usuario, valor) {
+  if (valor === null || valor === '' || valor === undefined) {
+    await consulta('DELETE FROM ha_tarifa_persona WHERE usuario = ?', [usuario]);
+    return tarifaVer(usuario);
+  }
+  const t = Number(String(valor).replace(',', '.'));
+  if (!(t > 0) || t > 100000) throw new ErrorUsuario('Indica una tarifa mayor que cero.');
+  await consulta(
+    'INSERT INTO ha_tarifa_persona (usuario, tarifa, actualizada) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE tarifa = VALUES(tarifa), actualizada = UTC_TIMESTAMP()',
+    [usuario, redondear(t)]
+  );
+  return tarifaVer(usuario);
 }
 
 async function codigoLibre(prefijo, fecha) {
@@ -109,9 +167,9 @@ async function codigoLibre(prefijo, fecha) {
 // configurado, como hacía el gestor antiguo.
 async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha, autor }) {
   const cfg = await config();
-  const cliente = await clientePorDefecto();
+  const cliente = await clientePorDefecto(autor || '');
   const horas = horasFacturables(minutos, cfg);
-  const tarifa = tarifaDe(cliente, cfg);
+  const tarifa = await tarifaPara(autor, cliente, cfg);
   const momento = fecha || new Date();
 
   await consulta(
@@ -129,7 +187,7 @@ async function gastoCrear(datos, autor) {
   if (!concepto) throw new ErrorUsuario('Indica el concepto.');
   if (!importe || importe <= 0) throw new ErrorUsuario('Indica un importe mayor que cero.');
 
-  const cliente = await clientePorId(datos.clienteId);
+  const cliente = await clientePorId(datos.clienteId, autor || '');
   const dia = esDia(datos.dia) ? datos.dia : diaLocal();
 
   await consulta(
@@ -141,7 +199,7 @@ async function gastoCrear(datos, autor) {
 
 // Quién ve qué horas y cobros. Quien tiene su propia empresa de Sindri (ha_sindri_persona) es
 // independiente: lo suyo es solo suyo. Lo de los demás es del grupo general (''). Cada uno ve lo de
-// su grupo y lo de quien le haya dejado verlo (ha_horas_permiso); nadie más ve lo que cobra otro.
+// su grupo y lo de quien le haya dejado verlo (ha_compartir); nadie más ve lo que cobra otro.
 // Un trabajo que ya está en un pedido de Sindri es de la empresa que lo tiene.
 function grupoDe(t, independientes) {
   const pedido = t.sindri_pedido !== undefined ? t.sindri_pedido : t.sindriPedido;
@@ -149,37 +207,49 @@ function grupoDe(t, independientes) {
   return t.autor && independientes.has(t.autor) ? t.autor : '';
 }
 
+// Qué comparte cada uno con quién (ha_compartir): 'horas' (verlas con su importe), 'clientes'
+// (usarlos en sus trabajos) e 'incidencias' (verlas y trabajar en ellas; las horas que apunte
+// cada uno van a su empresa). dueno '' = el grupo general.
+const COMPARTIBLE = ['horas', 'clientes', 'incidencias'];
+
 async function vista(usuario) {
   const independientes = new Set((await consulta('SELECT usuario FROM ha_sindri_persona')).map(f => f.usuario));
   const mio = usuario && independientes.has(usuario) ? usuario : '';
-  const dejan = (await consulta('SELECT dueno FROM ha_horas_permiso WHERE usuario = ?', [usuario || ''])).map(f => f.dueno);
-  const veo = new Set([mio, ...dejan]);
+  const filas = await consulta('SELECT dueno, que FROM ha_compartir WHERE usuario = ?', [usuario || '']);
+  const de = {};
+  COMPARTIBLE.forEach(q => { de[q] = new Set([mio, ...filas.filter(f => f.que === q).map(f => f.dueno)]); });
   return {
     mio,
     independiente: Boolean(mio),
     grupo: t => grupoDe(t, independientes),
-    ve: t => veo.has(grupoDe(t, independientes)),
-    esMio: t => grupoDe(t, independientes) === mio
+    ve: t => de.horas.has(grupoDe(t, independientes)),
+    esMio: t => grupoDe(t, independientes) === mio,
+    veDe: (que, dueno) => de[que].has(dueno || '')
   };
 }
 
-// A quién deja ver uno sus horas, y quién le deja verlas a él.
+// Qué comparte uno y con quién, y qué le comparten a él.
 async function permisos(usuario) {
   const v = await vista(usuario);
-  const dejo = (await consulta('SELECT usuario FROM ha_horas_permiso WHERE dueno = ? ORDER BY usuario', [v.mio])).map(f => f.usuario);
-  const meDejan = (await consulta('SELECT dueno FROM ha_horas_permiso WHERE usuario = ? ORDER BY dueno', [usuario])).map(f => f.dueno || 'general');
-  return { independiente: v.independiente, dejo, meDejan };
+  const dejo = await consulta('SELECT usuario, que FROM ha_compartir WHERE dueno = ? ORDER BY usuario, que', [v.mio]);
+  const meDejan = await consulta('SELECT dueno, que FROM ha_compartir WHERE usuario = ? ORDER BY dueno, que', [usuario]);
+  return {
+    independiente: v.independiente,
+    dejo: dejo.map(f => ({ usuario: f.usuario, que: f.que })),
+    meDejan: meDejan.map(f => ({ de: f.dueno || 'general', que: f.que }))
+  };
 }
 
-async function permisoGuardar(usuario, otro, ver) {
+async function permisoGuardar(usuario, otro, que, ver) {
   const v = await vista(usuario);
   const o = texto(otro, 100);
+  if (!COMPARTIBLE.includes(que)) throw new ErrorUsuario('Elige qué compartir.');
   if (!o) throw new ErrorUsuario('Indica el usuario.');
-  if (o === usuario) throw new ErrorUsuario('Tus horas ya las ves tú.');
+  if (o === usuario) throw new ErrorUsuario('Lo tuyo ya lo ves tú.');
   if (ver) {
-    await consulta('INSERT IGNORE INTO ha_horas_permiso (dueno, usuario, creado_en) VALUES (?, ?, UTC_TIMESTAMP())', [v.mio, o]);
+    await consulta('INSERT IGNORE INTO ha_compartir (dueno, usuario, que, creado_en) VALUES (?, ?, ?, UTC_TIMESTAMP())', [v.mio, o, que]);
   } else {
-    await consulta('DELETE FROM ha_horas_permiso WHERE dueno = ? AND usuario = ?', [v.mio, o]);
+    await consulta('DELETE FROM ha_compartir WHERE dueno = ? AND usuario = ? AND que = ?', [v.mio, o, que]);
   }
   return permisos(usuario);
 }
@@ -268,7 +338,7 @@ async function trabajosOcupados() {
 
 module.exports = {
   config, configGuardar,
-  clientes, clienteGuardar,
+  clientes, clienteGuardar, COMPARTIBLE,
   trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
-  grupoDe, vista, permisos, permisoGuardar
+  grupoDe, vista, permisos, permisoGuardar, tarifaVer, tarifaGuardar
 };

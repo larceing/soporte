@@ -114,7 +114,7 @@ async function enviar() {
 
     const filas = await consulta(
       `SELECT id, codigo, tipo, titulo, descripcion, estado, prioridad, limite, tarea_id, tarea_estado, tarea_huella
-         FROM ha_incidencia WHERE tarea_id IS NOT NULL OR estado NOT IN (?) ORDER BY id`,
+         FROM ha_incidencia WHERE dueno = '' AND (tarea_id IS NOT NULL OR estado NOT IN (?)) ORDER BY id`,
       [CERRADAS]
     );
     for (const i of filas) {

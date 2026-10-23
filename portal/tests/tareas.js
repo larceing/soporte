@@ -8,14 +8,16 @@ const path = require('path');
 const config = new Map();
 const incs = [
   { id: 1, codigo: 'INC_X_1', tipo: 'Incidencia', titulo: 'Impresora', descripcion: 'No imprime', estado: 'new', prioridad: 'urgent', limite: '2026-10-30' },
-  { id: 2, codigo: 'PET_X_2', tipo: 'Petición', titulo: 'Informe', descripcion: '', estado: 'closed', prioridad: 'normal', limite: null }
+  { id: 2, codigo: 'PET_X_2', tipo: 'Petición', titulo: 'Informe', descripcion: '', estado: 'closed', prioridad: 'normal', limite: null },
+  // De quien trabaja con su propia empresa: no va al proyecto de Tareas de la general.
+  { id: 3, codigo: 'INC_X_3', tipo: 'Incidencia', titulo: 'De Ivan', descripcion: '', estado: 'new', prioridad: 'normal', limite: null, dueno: 'ivan' }
 ];
 async function consulta(sql, p = []) {
   if (/DELETE FROM ha_config/.test(sql)) { config.delete('TAREAS_LLAVE'); return []; }
   if (/FROM ha_config WHERE clave IN/.test(sql)) return [...config].filter(([k]) => k.startsWith('TAREAS_')).map(([clave, valor]) => ({ clave, valor }));
   if (/FROM ha_config$/.test(sql)) return [...config].map(([clave, valor]) => ({ clave, valor }));
   if (/INSERT INTO ha_config/.test(sql)) { config.set(p[0], p[1]); return []; }
-  if (/FROM ha_incidencia WHERE tarea_id IS NOT NULL OR estado NOT IN/.test(sql)) return incs.filter(i => i.tarea_id || !p[0].includes(i.estado)).map(i => ({ ...i }));
+  if (/FROM ha_incidencia WHERE dueno = '' AND \(tarea_id IS NOT NULL OR estado NOT IN/.test(sql)) return incs.filter(i => !i.dueno && (i.tarea_id || !p[0].includes(i.estado))).map(i => ({ ...i }));
   if (/UPDATE ha_incidencia SET tarea_id = \?, tarea_estado = \?, tarea_huella = \?/.test(sql)) { Object.assign(incs.find(i => i.id === p[3]), { tarea_id: p[0], tarea_estado: p[1], tarea_huella: p[2] }); return []; }
   if (/UPDATE ha_incidencia SET tarea_huella = \?/.test(sql)) { incs.find(i => i.id === p[1]).tarea_huella = p[0]; return []; }
   if (/UPDATE ha_incidencia SET tarea_estado = \?/.test(sql)) { incs.find(i => i.id === p[1]).tarea_estado = p[0]; return []; }

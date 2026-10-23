@@ -206,12 +206,22 @@ const TABLAS = [
      llave VARCHAR(200) NOT NULL,
      actualizada DATETIME NOT NULL
    ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  // A quién deja ver cada uno sus horas y cobros (dueno '' = el grupo general). src/facturacion.js.
-  `CREATE TABLE IF NOT EXISTS ha_horas_permiso (
+  // Tarifa por hora de cada persona (src/facturacion.js, tarifaPara).
+  `CREATE TABLE IF NOT EXISTS ha_tarifa_persona (
+     usuario VARCHAR(100) PRIMARY KEY,
+     tarifa DECIMAL(10,2) NOT NULL,
+     actualizada DATETIME NOT NULL
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // Varias personas: de quién es cada cliente e incidencia ('' = el grupo general; si no, quien
+  // trabaja con su propia empresa) y qué comparte cada uno con quién (src/facturacion.js, vista).
+  `ALTER TABLE ha_cliente ADD COLUMN IF NOT EXISTS dueno VARCHAR(100) NOT NULL DEFAULT ''`,
+  `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS dueno VARCHAR(100) NOT NULL DEFAULT ''`,
+  `CREATE TABLE IF NOT EXISTS ha_compartir (
      dueno VARCHAR(100) NOT NULL,
      usuario VARCHAR(100) NOT NULL,
+     que VARCHAR(20) NOT NULL,
      creado_en DATETIME NOT NULL,
-     PRIMARY KEY (dueno, usuario)
+     PRIMARY KEY (dueno, usuario, que)
    ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // Tareas: la tarea de cada incidencia, si está abierta, cerrada o borrada allí, y la huella de lo
   // último que se le mandó (src/tareas.js).

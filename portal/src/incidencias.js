@@ -83,6 +83,7 @@ function base(fila) {
     limite: fila.limite || '',
     servicio: fila.servicio_sku || '',
     servicioAuto: servicioDe(fila.titulo, fila.tipo).sku,
+    dueno: fila.dueno || '',
     creada: iso(fila.creada),
     actualizada: iso(fila.actualizada),
     minutos: Number(fila.minutos) || 0
@@ -143,13 +144,13 @@ const anotar = (con, id, campo, antes, despues) => con.query(
 
 const tocar = (con, id) => con.query('UPDATE ha_incidencia SET actualizada = UTC_TIMESTAMP() WHERE id = ?', [id]);
 
-async function crear({ tipo, titulo, descripcion, prioridad, limite, autor }) {
+async function crear({ tipo, titulo, descripcion, prioridad, limite, autor, dueno }) {
   const ahora = new Date();
   const id = await enTransaccion(async con => {
     const [r] = await con.query(
-      `INSERT INTO ha_incidencia (codigo, tipo, titulo, descripcion, estado, prioridad, limite, autor, creada, actualizada)
-       VALUES (?, ?, ?, ?, 'new', ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
-      [codigo(tipo, ahora), tipo, titulo, descripcion || titulo, prioridad || 'normal', limite || null, autor || '']
+      `INSERT INTO ha_incidencia (codigo, tipo, titulo, descripcion, estado, prioridad, limite, autor, dueno, creada, actualizada)
+       VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+      [codigo(tipo, ahora), tipo, titulo, descripcion || titulo, prioridad || 'normal', limite || null, autor || '', dueno || '']
     );
     await anotar(con, r.insertId, 'Alta', '', 'Incidencia creada');
     return r.insertId;

@@ -11,11 +11,21 @@ let trabajos = [];
 const clientes = [{ id: 1, nombre: 'Cliente', razon_social: 'Cliente SL', nif: 'B-11111111', activo: 1 }];
 const personasLlave = new Map();
 const permisos = [];
+const tarifas = new Map();
+const insertados = [];
 async function consulta(sql, p = []) {
-  if (/SELECT dueno FROM ha_horas_permiso WHERE usuario/.test(sql)) return permisos.filter(x => x.usuario === p[0]).map(x => ({ dueno: x.dueno }));
-  if (/SELECT usuario FROM ha_horas_permiso WHERE dueno/.test(sql)) return permisos.filter(x => x.dueno === p[0]).map(x => ({ usuario: x.usuario }));
-  if (/INSERT IGNORE INTO ha_horas_permiso/.test(sql)) { if (!permisos.some(x => x.dueno === p[0] && x.usuario === p[1])) permisos.push({ dueno: p[0], usuario: p[1] }); return []; }
-  if (/DELETE FROM ha_horas_permiso/.test(sql)) { permisos.splice(0, permisos.length, ...permisos.filter(x => !(x.dueno === p[0] && x.usuario === p[1]))); return []; }
+  if (/SELECT dueno, que FROM ha_compartir WHERE usuario/.test(sql)) return permisos.filter(x => x.usuario === p[0]);
+  if (/SELECT usuario, que FROM ha_compartir WHERE dueno/.test(sql)) return permisos.filter(x => x.dueno === p[0]);
+  if (/INSERT IGNORE INTO ha_compartir/.test(sql)) { if (!permisos.some(x => x.dueno === p[0] && x.usuario === p[1] && x.que === p[2])) permisos.push({ dueno: p[0], usuario: p[1], que: p[2] }); return []; }
+  if (/DELETE FROM ha_compartir/.test(sql)) { permisos.splice(0, permisos.length, ...permisos.filter(x => !(x.dueno === p[0] && x.usuario === p[1] && x.que === p[2]))); return []; }
+  if (/FROM ha_tarifa_persona/.test(sql)) return tarifas.has(p[0]) ? [{ tarifa: tarifas.get(p[0]) }] : [];
+  if (/INSERT INTO ha_tarifa_persona/.test(sql)) { tarifas.set(p[0], p[1]); return []; }
+  if (/DELETE FROM ha_tarifa_persona/.test(sql)) { tarifas.delete(p[0]); return []; }
+  if (/SELECT dueno FROM ha_cliente WHERE id/.test(sql)) return clientes.filter(c => c.id === p[0]).map(c => ({ dueno: c.dueno || '' }));
+  if (/SELECT id FROM ha_cliente WHERE nombre/.test(sql)) return clientes.filter(c => c.nombre === p[0]);
+  if (/INSERT INTO ha_cliente/.test(sql)) { clientes.push({ id: clientes.length + 10, nombre: p[0], nif: p[2], activo: 1, dueno: p[9] }); return []; }
+  if (/INSERT INTO ha_trabajo/.test(sql)) { insertados.push({ sql, p }); return []; }
+  if (/SELECT 1 FROM ha_trabajo WHERE codigo/.test(sql)) return [];
   if (/SELECT usuario FROM ha_sindri_persona/.test(sql)) return [...personasLlave.keys()].map(usuario => ({ usuario }));
   if (/FROM ha_trabajo WHERE id = \?/.test(sql)) return trabajos.filter(t => t.id === p[0]);
   if (/FROM ha_sindri_persona/.test(sql)) return [...personasLlave].map(([usuario, llave]) => ({ usuario, llave }));
@@ -229,15 +239,41 @@ const base = { cliente_id: 1, estado: 'CERRADA', pago_id: null, tipo: 'TIEMPO', 
   assert.ok(codigos(await fact.trabajos({}, 'luis')).includes('SES-1'));
   assert.strictEqual((await sindri.estado('ivan')).ultima, null);
   assert.ok((await sindri.estado('luis')).ultima);
-  let p = await fact.permisoGuardar('ivan', 'luis', true);
-  assert.deepStrictEqual(p.dejo, ['luis']);
+  let p = await fact.permisoGuardar('ivan', 'luis', 'horas', true);
+  assert.deepStrictEqual(p.dejo, [{ usuario: 'luis', que: 'horas' }]);
   const visto = (await fact.trabajos({}, 'luis')).find(t => t.codigo === 'SES-7');
   assert.ok(visto && visto.deOtro);
   await assert.rejects(fact.trabajoEstado(7, 'NO_COBRAR', 'luis'), /no es tuyo/);
   assert.ok(!(await fact.trabajos({}, 'ivan')).some(t => t.codigo === 'SES-1'));
-  p = await fact.permisoGuardar('ivan', 'luis', false);
+  p = await fact.permisoGuardar('ivan', 'luis', 'horas', false);
   assert.deepStrictEqual(p.dejo, []);
   assert.ok(!(await fact.trabajos({}, 'luis')).some(t => t.codigo === 'SES-7'));
+
+  // Clientes: cada uno los suyos; los del otro solo si se los comparte, y no los cambia.
+  assert.ok((await fact.clientes('ivan')).every(c => c.dueno === 'ivan'));
+  await fact.clienteGuardar({ nombre: 'Cliente de Ivan', nif: 'B33333333' }, 'ivan');
+  assert.deepStrictEqual((await fact.clientes('ivan')).map(c => c.nombre), ['Cliente de Ivan']);
+  assert.ok(!(await fact.clientes('luis')).some(c => c.nombre === 'Cliente de Ivan'));
+  await assert.rejects(fact.clienteGuardar({ nombre: 'Cliente de Ivan' }, 'luis'), /Ya hay un cliente/);
+  await fact.permisoGuardar('luis', 'ivan', 'clientes', true);
+  const compartido = (await fact.clientes('ivan')).find(c => c.nombre === 'Cliente');
+  assert.ok(compartido && compartido.deOtro);
+  await assert.rejects(fact.clienteGuardar({ id: compartido.id, nombre: 'Otro nombre' }, 'ivan'), /no es tuyo/);
+  await assert.rejects(fact.permisoGuardar('ivan', 'luis', 'todo', true), /qué compartir/);
+
+  // Tarifa por persona: quien tiene su empresa cobra la suya y, si no ha puesto ninguna, 1.
+  assert.strictEqual((await fact.tarifaVer('ivan')).seAplica, 1);
+  await fact.trabajoDeTiempo({ incidenciaId: 1, concepto: 'X', minutos: 60, autor: 'ivan' });
+  let ins = insertados.at(-1).p;
+  assert.strictEqual(ins[9], 1);
+  assert.strictEqual(ins[1], clientes.find(c => c.nombre === 'Cliente de Ivan').id);
+  await fact.tarifaGuardar('ivan', '40');
+  await fact.trabajoDeTiempo({ incidenciaId: 1, concepto: 'X', minutos: 60, autor: 'ivan' });
+  assert.strictEqual(insertados.at(-1).p[9], 40);
+  await assert.rejects(fact.tarifaGuardar('ivan', '-3'), /mayor que cero/);
+  // En el grupo general sigue la del cliente o la general.
+  await fact.trabajoDeTiempo({ incidenciaId: 1, concepto: 'X', minutos: 60, autor: 'luis' });
+  assert.strictEqual(insertados.at(-1).p[9], 15);
 
   // Quitar la llave apaga el envío.
   await sindri.guardarConexion({ quitar: true });
