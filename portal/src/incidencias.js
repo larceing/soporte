@@ -84,6 +84,7 @@ function base(fila) {
     servicio: fila.servicio_sku || '',
     servicioAuto: servicioDe(fila.titulo, fila.tipo).sku,
     dueno: fila.dueno || '',
+    clienteId: fila.cliente_id || null,
     creada: iso(fila.creada),
     actualizada: iso(fila.actualizada),
     minutos: Number(fila.minutos) || 0
@@ -144,13 +145,13 @@ const anotar = (con, id, campo, antes, despues) => con.query(
 
 const tocar = (con, id) => con.query('UPDATE ha_incidencia SET actualizada = UTC_TIMESTAMP() WHERE id = ?', [id]);
 
-async function crear({ tipo, titulo, descripcion, prioridad, limite, autor, dueno }) {
+async function crear({ tipo, titulo, descripcion, prioridad, limite, autor, dueno, clienteId }) {
   const ahora = new Date();
   const id = await enTransaccion(async con => {
     const [r] = await con.query(
-      `INSERT INTO ha_incidencia (codigo, tipo, titulo, descripcion, estado, prioridad, limite, autor, dueno, creada, actualizada)
-       VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
-      [codigo(tipo, ahora), tipo, titulo, descripcion || titulo, prioridad || 'normal', limite || null, autor || '', dueno || '']
+      `INSERT INTO ha_incidencia (codigo, tipo, titulo, descripcion, estado, prioridad, limite, autor, dueno, cliente_id, creada, actualizada)
+       VALUES (?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+      [codigo(tipo, ahora), tipo, titulo, descripcion || titulo, prioridad || 'normal', limite || null, autor || '', dueno || '', clienteId || null]
     );
     await anotar(con, r.insertId, 'Alta', '', 'Incidencia creada');
     return r.insertId;
@@ -191,6 +192,10 @@ async function actualizar(id, cambios) {
   if (cambia('servicio')) {
     campos.push(['servicio_sku', cambios.servicio || null]);
     historial.push(['Servicio', actual.servicio || 'Automático', cambios.servicio || 'Automático']);
+  }
+  if (cambia('clienteId')) {
+    campos.push(['cliente_id', cambios.clienteId || null]);
+    historial.push(['Cliente', cambios.clienteAntes || 'Por defecto', cambios.clienteNombre || 'Por defecto']);
   }
   if (cambia('estado')) {
     campos.push(['estado', cambios.estado]);

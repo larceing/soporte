@@ -387,6 +387,30 @@ async function cronoDescartar() {
 function nuevaPreparar() {
   document.getElementById('nuevaTipo').innerHTML = opciones(catalogo.tipos, 'Incidencia');
   document.getElementById('nuevaPrioridad').innerHTML = opciones(elegibles(catalogo.prioridades), 'normal');
+  clientesCargar().then(function() {
+    document.getElementById('nuevaCliente').innerHTML = opcionesCliente(null);
+  }).catch(function() {});
+}
+
+// Los clientes que ves (los tuyos y los que te compartan): a quién se cobra cada incidencia.
+let clientesLista = null;
+async function clientesCargar() {
+  clientesLista = await api('GET', '/clientes');
+  return clientesLista;
+}
+
+function opcionesCliente(elegido) {
+  const lista = clientesLista || [];
+  let html = '<option value="">El mío por defecto</option>';
+  // Uno que no ves (en una incidencia que te comparten) se queda tal cual.
+  if (elegido && !lista.some(function(c) { return Number(c.id) === Number(elegido); })) {
+    html += '<option value="' + esc(elegido) + '" selected>El que eligió quien te la comparte</option>';
+  }
+  lista.forEach(function(c) {
+    html += '<option value="' + esc(c.id) + '"' + (Number(c.id) === Number(elegido) ? ' selected' : '') + '>' +
+      esc(c.nombre) + (c.deOtro ? ' (compartido)' : '') + '</option>';
+  });
+  return html;
 }
 
 async function nuevaCrear(empezar) {
@@ -402,7 +426,8 @@ async function nuevaCrear(empezar) {
       prioridad: document.getElementById('nuevaPrioridad').value,
       limite: document.getElementById('nuevaLimite').value,
       titulo: document.getElementById('nuevaTitulo').value,
-      descripcion: document.getElementById('nuevaDescripcion').value
+      descripcion: document.getElementById('nuevaDescripcion').value,
+      clienteId: document.getElementById('nuevaCliente').value || null
     });
 
     ['nuevaTitulo', 'nuevaDescripcion', 'nuevaLimite'].forEach(function(id) { document.getElementById(id).value = ''; });
@@ -442,6 +467,10 @@ function detalleCambiarTab(tab) {
 function detallePintar(inc) {
   detalleActual = inc;
   serviciosCargar();
+  if (!clientesLista) clientesCargar().then(function() {
+    const campo = document.getElementById('segCliente');
+    if (campo && detalleActual) campo.innerHTML = opcionesCliente(detalleActual.clienteId);
+  }).catch(function() {});
   const enCurso = cronometro && Number(cronometro.incidenciaId) === Number(inc.id);
   const pestanas = [
     ['seguimiento', 'Seguimiento'],
@@ -494,6 +523,7 @@ function tabSeguimiento(inc) {
       '<div class="field"><label for="segPrioridad">Prioridad</label><select id="segPrioridad">' + opciones(elegibles(catalogo.prioridades, inc.prioridad), inc.prioridad) + '</select></div>' +
       '<div class="field"><label for="segLimite">Fecha límite</label><input id="segLimite" type="date" value="' + esc(inc.limite) + '"></div>' +
       '<div class="field"><label for="segTipo">Tipo</label><select id="segTipo">' + opciones(catalogo.tipos, inc.tipo) + '</select></div>' +
+      '<div class="field"><label for="segCliente">Se cobra a</label><select id="segCliente">' + opcionesCliente(inc.clienteId) + '</select></div>' +
       '<div class="field field-full"><label for="segServicioBuscar">Servicio para Sindri</label>' +
         '<div class="servicio-elegir">' +
           '<input id="segServicioBuscar" type="search" autocomplete="off" placeholder="Buscar: docker, sage incidencias, power bi…" aria-label="Buscar servicio" oninput="servicioFiltrar()">' +
@@ -697,6 +727,8 @@ async function detalleGuardar() {
       limite: document.getElementById('segLimite').value,
       tipo: document.getElementById('segTipo').value,
       servicio: document.getElementById('segServicio').value,
+      ...((document.getElementById('segCliente').value || null) != (inc.clienteId || null)
+        ? { clienteId: document.getElementById('segCliente').value || null } : {}),
       titulo: document.getElementById('segTitulo').value,
       descripcion: document.getElementById('segDescripcion').value
     }));

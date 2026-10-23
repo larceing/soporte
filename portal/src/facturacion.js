@@ -167,7 +167,11 @@ async function codigoLibre(prefijo, fecha) {
 // configurado, como hacía el gestor antiguo.
 async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha, autor }) {
   const cfg = await config();
-  const cliente = await clientePorDefecto(autor || '');
+  // El cliente de la incidencia; si no tiene, el de quien trabaja. Compartir la incidencia
+  // comparte también a quién se cobra.
+  const [inc] = incidenciaId ? await consulta('SELECT cliente_id FROM ha_incidencia WHERE id = ?', [incidenciaId]) : [];
+  const [delaIncidencia] = inc && inc.cliente_id ? await consulta('SELECT * FROM ha_cliente WHERE id = ?', [inc.cliente_id]) : [];
+  const cliente = delaIncidencia || await clientePorDefecto(autor || '');
   const horas = horasFacturables(minutos, cfg);
   const tarifa = await tarifaPara(autor, cliente, cfg);
   const momento = fecha || new Date();
@@ -338,7 +342,7 @@ async function trabajosOcupados() {
 
 module.exports = {
   config, configGuardar,
-  clientes, clienteGuardar, COMPARTIBLE,
+  clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
   grupoDe, vista, permisos, permisoGuardar, tarifaVer, tarifaGuardar
 };

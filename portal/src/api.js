@@ -144,7 +144,8 @@ router.post('/incidencias', ruta(async (req, res) => {
     prioridad: prioridad,
     limite: req.body.limite || '',
     autor: req.usuario.usuario,
-    dueno: (await fact.vista(req.usuario.usuario)).mio
+    dueno: (await fact.vista(req.usuario.usuario)).mio,
+    clienteId: req.body.clienteId ? (await fact.clientePorId(req.body.clienteId, req.usuario.usuario)).id : null
   }), req.usuario.usuario));
 }));
 
@@ -187,6 +188,16 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
     const sku = String(b.servicio || '').trim();
     if (sku && !/^[A-Za-z0-9._-]{1,40}$/.test(sku)) throw new ErrorUsuario('Servicio no válido.');
     cambios.servicio = sku;
+  }
+
+  // A qué cliente se cobra: uno que vea quien lo elige; vacío, el de quien trabaja.
+  if (b.clienteId !== undefined) {
+    const antes = (await incidencias.obtener(req.params.id)).clienteId;
+    const [viejo] = antes ? await consulta('SELECT nombre FROM ha_cliente WHERE id = ?', [antes]) : [];
+    const nuevo = b.clienteId ? await fact.clientePorId(b.clienteId, req.usuario.usuario) : null;
+    cambios.clienteId = nuevo ? nuevo.id : null;
+    cambios.clienteNombre = nuevo ? nuevo.nombre : '';
+    cambios.clienteAntes = viejo ? viejo.nombre : '';
   }
 
   // No se resuelve ni se cierra con el cronómetro en marcha sobre ella.
