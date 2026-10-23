@@ -140,11 +140,8 @@ async function anotarPedidos(enSindri, grupo = '') {
 
 // A qué empresa va cada trabajo: la que ya lo tiene en un pedido; si no, la de su autor si tiene
 // llave propia ('' = la llave general). Quien quitó su llave (llave vacía) no manda nada: sus
-// horas esperan a que ponga otra y no acaban en la empresa de otro.
-function grupoDe(t, personas) {
-  if (t.sindri_pedido) return t.sindri_empresa || '';
-  return t.autor && personas.has(t.autor) ? t.autor : '';
-}
+// horas esperan a que ponga otra y no acaban en la empresa de otro (fact.grupoDe).
+const grupoDe = (t, personas) => fact.grupoDe(t, personas);
 
 async function personasConLlave() {
   const filas = await consulta('SELECT usuario, llave FROM ha_sindri_persona');
@@ -365,9 +362,11 @@ async function estado(usuario) {
   const mia = usuario && personas.has(usuario)
     ? { configurada: Boolean(personas.get(usuario)), enEspera: !personas.get(usuario), ultima: ultimaPersona[usuario] || null }
     : { configurada: false, enEspera: false, ultima: null };
+  // Quien tiene su propia empresa no ve cómo le va a la general ni puede cambiar su conexión.
+  const independiente = Boolean(usuario && personas.has(usuario));
   return {
-    configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima,
-    mia, personas: [...personas].filter(([, l]) => l).map(([u]) => u)
+    configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima: independiente ? null : ultima,
+    independiente, mia, personas: [...personas].filter(([, l]) => l).map(([u]) => u)
   };
 }
 
