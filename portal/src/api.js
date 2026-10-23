@@ -56,7 +56,8 @@ async function registrarNota(incidenciaId, nota, minutos, autor) {
       notaId: notaId,
       concepto: incidencia.titulo,
       detalle: nota,
-      minutos: minutos
+      minutos: minutos,
+      autor: autor
     });
   }
   return incidencia;
@@ -365,7 +366,13 @@ router.get('/exportar-sindri', ruta(async (req, res) => {
 
 // Envío automático a Sindri: dónde está, su llave (nunca se devuelve) y cómo fue el último envío.
 router.get('/sindri', ruta(async (req, res) => {
-  res.json(await sindri.estado());
+  res.json(await sindri.estado(req.usuario.usuario));
+}));
+
+// La llave propia: las horas de quien la pone van a su empresa de Sindri.
+router.put('/sindri/mia', ruta(async (req, res) => {
+  const b = req.body || {};
+  res.json(await sindri.guardarMia(req.usuario.usuario, { llave: b.llave, quitar: b.quitar === true }));
 }));
 
 router.put('/sindri', ruta(async (req, res) => {
@@ -381,7 +388,7 @@ router.get('/sindri/servicios', ruta(async (req, res) => {
 
 router.post('/sindri/enviar', ruta(async (req, res) => {
   await sindri.sincronizar();
-  res.json(await sindri.estado());
+  res.json(await sindri.estado(req.usuario.usuario));
 }));
 
 // Tareas: dónde está, su llave (nunca se devuelve), el proyecto y cómo fue el último envío.
@@ -406,7 +413,7 @@ router.get('/trabajos', ruta(async (req, res) => {
 }));
 
 router.post('/trabajos/gasto', ruta(async (req, res) => {
-  await fact.gastoCrear(req.body || {});
+  await fact.gastoCrear(req.body || {}, req.usuario.usuario);
   res.status(201).json({ ok: true });
 }));
 

@@ -194,6 +194,18 @@ const TABLAS = [
   // del título) y el pedido de Sindri en que está ya cada trabajo.
   `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS servicio_sku VARCHAR(40) NULL`,
   `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_pedido VARCHAR(40) NULL`,
+  // Varias personas, cada una con su empresa de Sindri: quién apuntó cada trabajo, en qué empresa
+  // está su pedido ('' = la de la llave general) y la llave propia de cada persona (src/sindri.js).
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS autor VARCHAR(100) NULL`,
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS sindri_empresa VARCHAR(100) NULL`,
+  `UPDATE ha_trabajo t JOIN ha_nota n ON n.id = t.nota_id SET t.autor = NULLIF(n.autor, '')
+    WHERE t.autor IS NULL AND t.nota_id IS NOT NULL`,
+  `UPDATE ha_trabajo SET sindri_empresa = '' WHERE sindri_pedido IS NOT NULL AND sindri_empresa IS NULL`,
+  `CREATE TABLE IF NOT EXISTS ha_sindri_persona (
+     usuario VARCHAR(100) PRIMARY KEY,
+     llave VARCHAR(200) NOT NULL,
+     actualizada DATETIME NOT NULL
+   ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // Tareas: la tarea de cada incidencia, si está abierta, cerrada o borrada allí, y la huella de lo
   // último que se le mandó (src/tareas.js).
   `ALTER TABLE ha_incidencia ADD COLUMN IF NOT EXISTS tarea_id VARCHAR(40) NULL`,

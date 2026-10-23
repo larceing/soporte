@@ -107,7 +107,7 @@ async function codigoLibre(prefijo, fecha) {
 
 // Sesión de trabajo: cada una se redondea a horas enteras con el mínimo
 // configurado, como hacía el gestor antiguo.
-async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha }) {
+async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha, autor }) {
   const cfg = await config();
   const cliente = await clientePorDefecto();
   const horas = horasFacturables(minutos, cfg);
@@ -116,14 +116,14 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
 
   await consulta(
     `INSERT INTO ha_trabajo (codigo, cliente_id, incidencia_id, nota_id, concepto, detalle, dia,
-                             minutos, horas, tarifa, importe, tipo, estado, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', UTC_TIMESTAMP())`,
+                             minutos, horas, tarifa, importe, tipo, estado, autor, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', ?, UTC_TIMESTAMP())`,
     [await codigoLibre('SES', momento), cliente.id, incidenciaId, notaId || null, texto(concepto, 255),
-      texto(detalle, 20000), diaLocal(momento), minutos, horas, tarifa, redondear(horas * tarifa)]
+      texto(detalle, 20000), diaLocal(momento), minutos, horas, tarifa, redondear(horas * tarifa), autor || null]
   );
 }
 
-async function gastoCrear(datos) {
+async function gastoCrear(datos, autor) {
   const concepto = texto(datos.concepto, 255);
   const importe = Number(String(datos.importe || '').replace(',', '.'));
   if (!concepto) throw new ErrorUsuario('Indica el concepto.');
@@ -133,9 +133,9 @@ async function gastoCrear(datos) {
   const dia = esDia(datos.dia) ? datos.dia : diaLocal();
 
   await consulta(
-    `INSERT INTO ha_trabajo (codigo, cliente_id, concepto, detalle, dia, importe, tipo, estado, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, 'UNICO', 'CERRADA', UTC_TIMESTAMP())`,
-    [await codigoLibre('COB'), cliente.id, concepto, texto(datos.detalle, 20000), dia, redondear(importe)]
+    `INSERT INTO ha_trabajo (codigo, cliente_id, concepto, detalle, dia, importe, tipo, estado, autor, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, 'UNICO', 'CERRADA', ?, UTC_TIMESTAMP())`,
+    [await codigoLibre('COB'), cliente.id, concepto, texto(datos.detalle, 20000), dia, redondear(importe), autor || null]
   );
 }
 

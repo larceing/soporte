@@ -9,6 +9,10 @@
 //
 // Dónde está Sindri y su llave: SINDRI_URL y SINDRI_LLAVE en el entorno o, si no están, en
 // Ajustes → Sindri (la llave se guarda en ha_config y nunca vuelve al navegador).
+//
+// Varias personas, cada una con su empresa: quien pone su propia llave (ha_sindri_persona) manda
+// sus horas a su empresa de Sindri; lo de los demás va a la empresa de la llave general. Un
+// trabajo que ya está en un pedido se queda con la empresa que lo tiene (ha_trabajo.sindri_empresa).
 
 const { consulta } = require('./db');
 const fact = require('./facturacion');
@@ -24,6 +28,7 @@ let enCurso = null;
 let pendienteOtra = false;
 let temporizador = null;
 
+let ultimaPersona = {};
 const sinBarra = s => String(s || '').trim().replace(/\/+$/, '');
 
 async function conexion() {
@@ -87,7 +92,7 @@ async function llamar(c, metodo, ruta, cuerpo) {
 async function trabajosPendientes() {
   const ocupados = await fact.trabajosOcupados();
   return (await consulta(
-    `SELECT t.id, t.codigo, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
+    `SELECT t.id, t.codigo, t.autor, t.sindri_pedido, t.sindri_empresa, t.cliente_id, t.concepto, t.dia, t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id,
             i.tipo AS incidencia_tipo, i.codigo AS incidencia_codigo, i.titulo AS incidencia_titulo, i.servicio_sku AS incidencia_servicio
        FROM ha_trabajo t LEFT JOIN ha_incidencia i ON i.id = t.incidencia_id
       WHERE t.estado = 'CERRADA' AND t.pago_id IS NULL
@@ -113,19 +118,37 @@ function elementosParaSindri(porFacturar, clientesSindri) {
   return { elementos, sinCliente };
 }
 
-// Cada trabajo sabe si ya está en un pedido de Sindri (y en cuál): así no se cobra también aquí.
+// Cada trabajo sabe si ya está en un pedido de Sindri (en cuál, y de qué empresa): así no se cobra
+// también aquí ni en otra empresa. Cada empresa solo toca sus marcas ('' = la de la llave general).
 // Sindri da como mucho 2000 referencias; si llega al tope no se borra ninguna marca.
-async function anotarPedidos(enSindri) {
+async function anotarPedidos(enSindri, grupo = '') {
   const enPedido = enSindri.filter(e => e.estado === 'en_pedido' && e.pedido);
   for (const e of enPedido) {
-    await consulta('UPDATE ha_trabajo SET sindri_pedido = ? WHERE codigo = ? AND NOT (sindri_pedido <=> ?)', [String(e.pedido).slice(0, 40), e.ref, String(e.pedido).slice(0, 40)]);
+    const pedido = String(e.pedido).slice(0, 40);
+    await consulta(
+      'UPDATE ha_trabajo SET sindri_pedido = ?, sindri_empresa = ? WHERE codigo = ? AND NOT (sindri_pedido <=> ? AND sindri_empresa <=> ?)',
+      [pedido, grupo, e.ref, pedido, grupo]
+    );
   }
   if (enSindri.length >= 2000) return;
   const refs = enPedido.map(e => e.ref);
   await consulta(
-    'UPDATE ha_trabajo SET sindri_pedido = NULL WHERE sindri_pedido IS NOT NULL' + (refs.length ? ' AND codigo NOT IN (?)' : ''),
-    refs.length ? [refs] : []
+    "UPDATE ha_trabajo SET sindri_pedido = NULL WHERE sindri_pedido IS NOT NULL AND COALESCE(sindri_empresa, '') = ?" + (refs.length ? ' AND codigo NOT IN (?)' : ''),
+    refs.length ? [grupo, refs] : [grupo]
   );
+}
+
+// A qué empresa va cada trabajo: la que ya lo tiene en un pedido; si no, la de su autor si tiene
+// llave propia ('' = la llave general). Quien quitó su llave (llave vacía) no manda nada: sus
+// horas esperan a que ponga otra y no acaban en la empresa de otro.
+function grupoDe(t, personas) {
+  if (t.sindri_pedido) return t.sindri_empresa || '';
+  return t.autor && personas.has(t.autor) ? t.autor : '';
+}
+
+async function personasConLlave() {
+  const filas = await consulta('SELECT usuario, llave FROM ha_sindri_persona');
+  return new Map(filas.map(f => [f.usuario, f.llave || '']));
 }
 
 let servCache = null;
@@ -198,56 +221,121 @@ async function altaClientes(c, datos, clientesSindri, altas) {
   return true;
 }
 
+// Lo de una empresa: los trabajos que le tocan, con su llave.
+async function enviarGrupo(c, grupo) {
+  const yo = await llamar(c, 'GET', '/yo');
+  const personas = await personasConLlave();
+  const [cfg, clientes, todos] = await Promise.all([fact.config(), consulta('SELECT * FROM ha_cliente ORDER BY nombre'), trabajosPendientes()]);
+  const trabajos = todos.filter(t => grupoDe(t, personas) === grupo);
+  const datos = datosParaSindri(cfg, clientes, trabajos);
+  const { por_facturar } = datos;
+  const altas = { clientes: 0, servicios: 0, errores: [] };
+  await altaServicios(c, datos, altas);
+  let clientesSindri = await llamar(c, 'GET', '/clientes');
+  if (await altaClientes(c, datos, clientesSindri, altas)) clientesSindri = await llamar(c, 'GET', '/clientes');
+  const { elementos, sinCliente } = elementosParaSindri(por_facturar, clientesSindri);
+
+  const cuenta = { creado: 0, actualizado: 0, en_pedido: 0, descartado: 0, retirados: 0 };
+  const errores = [...altas.errores, ...sinCliente];
+  for (let i = 0; i < elementos.length; i += 500) {
+    const r = await llamar(c, 'POST', '/por-facturar', { elementos: elementos.slice(i, i + 500) });
+    for (const e of r.elementos || []) {
+      if (e.estado === 'error') errores.push({ ref: e.ref, error: e.error });
+      else cuenta[e.estado] = (cuenta[e.estado] || 0) + 1;
+    }
+  }
+
+  // Lo que Sindri tiene pendiente de este origen y aquí ya no lo está (reabierto, no cobrar,
+  // cobrado aquí, de otra persona...) se retira. Lo que ya está en un pedido de Sindri no se toca.
+  const aqui = new Set(por_facturar.map(p => p.ref));
+  const enSindri = await llamar(c, 'GET', '/por-facturar');
+  await anotarPedidos(enSindri, grupo);
+  for (const e of enSindri) {
+    if (e.estado !== 'pendiente' || aqui.has(e.ref)) continue;
+    try {
+      await llamar(c, 'DELETE', '/por-facturar/' + encodeURIComponent(e.ref));
+      cuenta.retirados++;
+    } catch (err) {
+      errores.push({ ref: e.ref, error: err.message });
+    }
+  }
+  return {
+    ok: true, empresa: yo.empresa && (yo.empresa.trade_name || yo.empresa.name),
+    llave: yo.app, aviso: yo.app !== NOMBRE_LLAVE ? 'La llave de Sindri se llama «' + yo.app + '»: llámala «' + NOMBRE_LLAVE + '» para que lo enviado y lo importado con el fichero sean lo mismo.' : '',
+    pendientes: por_facturar.length, ...cuenta, altas: { clientes: altas.clientes, servicios: altas.servicios }, errores: errores.slice(0, 50)
+  };
+}
+
+const fallo = (e, c) => {
+  if (!e.status) console.error('Sindri: ' + (e.cause ? e.cause.message : e.message));
+  return { ok: false, error: e.name === 'TimeoutError' ? 'Sindri no responde.' : (e.cause ? 'No se puede conectar con Sindri en ' + c.url + '.' : e.message) };
+};
+
 async function enviar() {
   const c = await conexion();
-  if (!c.llave || !c.url) return null;
-  const inicio = new Date();
-  try {
-    const yo = await llamar(c, 'GET', '/yo');
-    const [cfg, clientes, trabajos] = await Promise.all([fact.config(), consulta('SELECT * FROM ha_cliente ORDER BY nombre'), trabajosPendientes()]);
-    const datos = datosParaSindri(cfg, clientes, trabajos);
-    const { por_facturar } = datos;
-    const altas = { clientes: 0, servicios: 0, errores: [] };
-    await altaServicios(c, datos, altas);
-    let clientesSindri = await llamar(c, 'GET', '/clientes');
-    if (await altaClientes(c, datos, clientesSindri, altas)) clientesSindri = await llamar(c, 'GET', '/clientes');
-    const { elementos, sinCliente } = elementosParaSindri(por_facturar, clientesSindri);
-
-    const cuenta = { creado: 0, actualizado: 0, en_pedido: 0, descartado: 0, retirados: 0 };
-    const errores = [...altas.errores, ...sinCliente];
-    for (let i = 0; i < elementos.length; i += 500) {
-      const r = await llamar(c, 'POST', '/por-facturar', { elementos: elementos.slice(i, i + 500) });
-      for (const e of r.elementos || []) {
-        if (e.estado === 'error') errores.push({ ref: e.ref, error: e.error });
-        else cuenta[e.estado] = (cuenta[e.estado] || 0) + 1;
-      }
+  if (!c.url) return null;
+  const inicio = new Date().toISOString();
+  // Primero la empresa general: si algo acaba de entrar en un pedido suyo, queda suyo.
+  if (c.llave) {
+    try {
+      ultima = { cuando: inicio, ...(await enviarGrupo(c, '')) };
+    } catch (e) {
+      ultima = { cuando: inicio, ...fallo(e, c) };
     }
-
-    // Lo que Sindri tiene pendiente de este origen y aquí ya no lo está (reabierto, no cobrar,
-    // cobrado aquí...) se retira. Lo que ya está en un pedido de Sindri no se toca.
-    const aqui = new Set(por_facturar.map(p => p.ref));
-    const enSindri = await llamar(c, 'GET', '/por-facturar');
-    await anotarPedidos(enSindri);
-    for (const e of enSindri) {
-      if (e.estado !== 'pendiente' || aqui.has(e.ref)) continue;
-      try {
-        await llamar(c, 'DELETE', '/por-facturar/' + encodeURIComponent(e.ref));
-        cuenta.retirados++;
-      } catch (err) {
-        errores.push({ ref: e.ref, error: err.message });
-      }
-    }
-
-    ultima = {
-      ok: true, cuando: inicio.toISOString(), empresa: yo.empresa && (yo.empresa.trade_name || yo.empresa.name),
-      llave: yo.app, aviso: yo.app !== NOMBRE_LLAVE ? 'La llave de Sindri se llama «' + yo.app + '»: llámala «' + NOMBRE_LLAVE + '» para que lo enviado y lo importado con el fichero sean lo mismo.' : '',
-      pendientes: por_facturar.length, ...cuenta, altas: { clientes: altas.clientes, servicios: altas.servicios }, errores: errores.slice(0, 50)
-    };
-  } catch (e) {
-    ultima = { ok: false, cuando: inicio.toISOString(), error: e.name === 'TimeoutError' ? 'Sindri no responde.' : (e.cause ? 'No se puede conectar con Sindri en ' + c.url + '.' : e.message) };
-    if (!e.status) console.error('Sindri: ' + (e.cause ? e.cause.message : e.message));
   }
-  return ultima;
+  const personas = await personasConLlave();
+  const nuevas = {};
+  for (const [usuario, llave] of personas) {
+    if (!llave) continue;
+    const cp = { url: c.url, llave };
+    try {
+      nuevas[usuario] = { cuando: inicio, ...(await enviarGrupo(cp, usuario)) };
+    } catch (e) {
+      nuevas[usuario] = { cuando: inicio, ...fallo(e, cp) };
+    }
+  }
+  ultimaPersona = nuevas;
+  return c.llave ? ultima : (Object.keys(nuevas).length ? { ok: true, cuando: inicio, personas: Object.keys(nuevas).length } : null);
+}
+
+// La llave propia de una persona: sus horas van a su empresa de Sindri. Se prueba antes de
+// guardarla y no puede ser de la misma empresa que la llave general (eso no separa nada).
+async function guardarMia(usuario, { llave, quitar }) {
+  if (!usuario) { const e = new Error('No se sabe quién eres.'); e.status = 401; throw e; }
+  if (quitar) {
+    // Se queda la fila sin llave: sus horas esperan, no pasan a la empresa general.
+    await consulta(
+      'INSERT INTO ha_sindri_persona (usuario, llave, actualizada) VALUES (?, \'\', UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE llave = \'\', actualizada = UTC_TIMESTAMP()',
+      [usuario]
+    );
+    delete ultimaPersona[usuario];
+    return estado(usuario);
+  }
+  const l = String(llave || '').trim().slice(0, 200);
+  const c = await conexion();
+  const error = (m, s = 422) => { const e = new Error(m); e.status = s; return e; };
+  if (!l) throw error('Escribe tu llave de Sindri.', 400);
+  if (!c.url) throw error('Falta la dirección de Sindri en Ajustes → Sindri.', 409);
+  let tuya;
+  try {
+    tuya = await llamar({ url: c.url, llave: l }, 'GET', '/yo');
+  } catch (e) {
+    throw error(e.status === 401 ? 'Sindri no acepta esa llave.' : fallo(e, c).error);
+  }
+  if (c.llave) {
+    const general = await llamar(c, 'GET', '/yo').catch(() => null);
+    const id = y => y && y.empresa && (y.empresa.id || y.empresa.code);
+    if (general && id(general) && id(general) === id(tuya)) {
+      throw error('Esa llave es de la misma empresa que la llave general: créala en tu empresa de Sindri.');
+    }
+  }
+  await consulta(
+    'INSERT INTO ha_sindri_persona (usuario, llave, actualizada) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE llave = VALUES(llave), actualizada = UTC_TIMESTAMP()',
+    [usuario, l]
+  );
+  delete ultimaPersona[usuario];
+  programar();
+  return estado(usuario);
 }
 
 // Un envío cada vez; si llega un cambio mientras tanto, se repite al terminar.
@@ -271,9 +359,16 @@ function arrancar() {
   setInterval(() => sincronizar().catch(() => {}), CADA).unref?.();
 }
 
-async function estado() {
+async function estado(usuario) {
   const c = await conexion();
-  return { configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima };
+  const personas = await personasConLlave();
+  const mia = usuario && personas.has(usuario)
+    ? { configurada: Boolean(personas.get(usuario)), enEspera: !personas.get(usuario), ultima: ultimaPersona[usuario] || null }
+    : { configurada: false, enEspera: false, ultima: null };
+  return {
+    configurado: Boolean(c.url && c.llave), url: c.url || '', desde: c.desde, llaveNombre: NOMBRE_LLAVE, ultima,
+    mia, personas: [...personas].filter(([, l]) => l).map(([u]) => u)
+  };
 }
 
-module.exports = { servicios, arrancar, programar, sincronizar, estado, guardarConexion, trabajosPendientes, elementosParaSindri };
+module.exports = { servicios, arrancar, programar, sincronizar, estado, guardarConexion, guardarMia, trabajosPendientes, elementosParaSindri };
