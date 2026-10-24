@@ -1,5 +1,5 @@
 :root {
-  --bg: #f3f5f7;
+  --bg: #f3f6fa;
   --surface: #ffffff;
   --ink: #15202b;
   --ink-soft: #3a4652;
@@ -22,7 +22,7 @@
   --pend-tint: #fbefd0;
   --pend-ink: #6b4700;
   --neutral-tint: #e4e9ee;
-  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Roboto Flex', Roboto, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
 }
 
@@ -1241,5 +1241,210 @@ textarea {
 
   .dialog {
     align-items: flex-end;
+  }
+}
+
+/* ── Plantilla común de las apps (8 + 9 + 7) ──
+   Escritorio: barra arriba con «Todas las apps», icono de Odin, menú en píldoras
+   (naranja de Odin), chip DEV y Salir. Móvil: la barra de abajo de siempre, en píldoras. */
+:root {
+  --odin: #c46a12;
+  --odin-fuerte: #9a520c;
+  --odin-tint: #ffe3cc;
+  --odin-ink: #4a2300;
+  --capa: #e6ebf2;
+}
+
+.apps-btn {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--capa);
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apps-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.apps-btn:hover {
+  background: var(--odin-tint);
+  color: var(--odin-ink);
+}
+
+.chip-dev {
+  flex: none;
+  align-self: center;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #ffe0b2;
+  color: #5a3300;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.chip-dev[hidden] {
+  display: none;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-brand img {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.nav-item.is-active {
+  background: var(--odin-tint);
+  color: var(--odin-ink);
+}
+
+.panel {
+  border-color: transparent;
+  border-radius: 24px;
+}
+
+.seg {
+  border-radius: 999px;
+}
+
+.seg button {
+  border-radius: 999px;
+}
+
+@media (min-width: 861px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 16px;
+    background: rgba(243, 246, 250, 0.94);
+    backdrop-filter: blur(8px);
+    border-right: 0;
+  }
+
+  .nav-brand {
+    padding: 0 12px 0 4px;
+  }
+
+  .nav-item {
+    min-height: 40px;
+    padding: 0 16px 0 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    gap: 8px;
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-item:hover {
+    background: var(--capa);
+  }
+
+  .nav-spacer {
+    flex: 1;
+  }
+
+  /* «Nueva incidencia» como botón lleno, a la derecha del menú */
+  .nav-new {
+    order: 1;
+    margin-left: 8px;
+    background: var(--odin-fuerte);
+    color: #ffffff;
+    border-radius: 16px;
+  }
+
+  .nav-new:hover,
+  .nav-new.is-active {
+    background: #7d4209;
+    color: #ffffff;
+  }
+
+  .nav-new span::before {
+    content: "Nueva incidencia";
+    font-size: 14px;
+  }
+
+  .nav-new span {
+    font-size: 0;
+  }
+
+  .nav .chip-dev {
+    margin: 0 4px;
+  }
+
+  .nav-item[onclick="coreSalir()"] {
+    order: 2;
+  }
+
+  .app {
+    padding: 16px 32px 40px;
+  }
+}
+
+@media (max-width: 860px) {
+  .apps-btn,
+  .chip-dev {
+    display: none;
+  }
+
+  .nav {
+    background: var(--capa);
+    border-top: 0;
+  }
+
+  .nav-item svg {
+    box-sizing: content-box;
+    padding: 4px 18px;
+    border-radius: 999px;
+  }
+
+  .nav-item.is-active {
+    background: transparent;
+    color: var(--odin-ink);
+  }
+
+  .nav-item.is-active svg {
+    background: var(--odin-tint);
+  }
+
+  .nav-new,
+  .nav-new.is-active {
+    background: var(--odin-fuerte);
+    border-radius: 18px;
+  }
+
+  .nav-new svg,
+  .nav-new.is-active svg {
+    padding: 0;
+    background: none;
+  }
+
+  .panel {
+    border-radius: 20px;
   }
 }

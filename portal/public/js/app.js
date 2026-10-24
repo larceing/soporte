@@ -783,6 +783,9 @@ async function detalleAdjuntar() {
 
 /* Arranque */
 
+// Chip DEV de la plantilla común: solo en el entorno de pruebas.
+if (location.hostname.indexOf('dev.') === 0) document.querySelector('.chip-dev').hidden = false;
+
 (async function() {
   try {
     catalogo = await api('GET', '/catalogo');
