@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex">
   <title>Odin</title>
   <link rel="icon" type="image/png" href="img/favicon.png">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Roboto+Flex:opsz,wght@8..144,400..700&display=swap">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/portal.css">
 </head>
@@ -14,6 +14,9 @@
 <body>
   <div class="shell">
     <nav class="nav" aria-label="Secciones">
+      <a class="apps-btn" href="/" aria-label="Todas las apps" title="Todas las apps">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="5" r="1.6"></circle><circle cx="12" cy="5" r="1.6"></circle><circle cx="19" cy="5" r="1.6"></circle><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle><circle cx="5" cy="19" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle><circle cx="19" cy="19" r="1.6"></circle></svg>
+      </a>
       <div class="nav-brand">
         <img src="img/odin.png" alt="">
         <span>Odin</span>
@@ -50,6 +53,7 @@
       </button>
 
       <div class="nav-spacer"></div>
+      <span class="chip-dev" hidden>DEV</span>
 
       <button type="button" class="nav-item nav-desk" onclick="coreSalir()">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
