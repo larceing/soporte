@@ -288,6 +288,13 @@ Una sesión dura de 1 minuto a 24 horas, no acaba en el futuro y cuenta en el d�
 Solo se corrige la propia, y no si ya está cobrada, facturada o en un pedido de Sindri. Lo pendiente
 se pone al día en Sindri unos segundos después. Pruebas: `node portal/tests/sesiones.js`.
 
+## Cuánto se ha cobrado
+
+En Horas, **«Resumen por mes»** enseña por mes lo cobrado (por la fecha del cobro, también lo que se
+cobró fuera de Sindri), lo que está en un pedido de Sindri o ya facturado y lo pendiente (por el día
+del trabajo), con cada cobro y su concepto. Se filtra por cliente, fechas y texto, como la lista. Solo
+se consulta: en Odin no se cobra ni se factura (eso es de Sindri). API: `GET /api/resumen`.
+
 ## Marcar como cobrado lo que se cobró fuera
 
 Si algo se cobró por otro lado (por ejemplo, con el gestor antiguo después del traspaso), en Horas se

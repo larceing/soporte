@@ -381,6 +381,7 @@ async function trabajos(filtros, usuario) {
   if (esDia(filtros.desde)) { donde.push('t.dia >= ?'); params.push(filtros.desde); }
   if (esDia(filtros.hasta)) { donde.push('t.dia <= ?'); params.push(filtros.hasta); }
   if (filtros.incidenciaId) { donde.push('t.incidencia_id = ?'); params.push(Number(filtros.incidenciaId)); }
+  if (Number(filtros.clienteId) > 0) { donde.push('t.cliente_id = ?'); params.push(Number(filtros.clienteId)); }
   if (filtros.cobro === 'PENDIENTE') donde.push("t.pago_id IS NULL AND t.estado = 'CERRADA' AND t.sindri_pedido IS NULL");
   if (filtros.cobro === 'SINDRI') donde.push('t.sindri_pedido IS NOT NULL');
   if (filtros.cobro === 'COBRADO') donde.push('t.pago_id IS NOT NULL');
@@ -408,6 +409,71 @@ async function trabajos(filtros, usuario) {
   return filas
     .filter(f => !v || v.ve(f))
     .map(({ sindri_empresa, ...f }) => ({ ...f, cobroDeshacible: Boolean(Number(f.cobroDeshacible)), deOtro: Boolean(v && !v.esMio({ ...f, sindri_empresa })), situacion: situacionDe(f, ocupados.get(Number(f.id))) }));
+}
+
+// Resumen para saber cuánto se ha cobrado: por mes, lo cobrado (por la fecha del cobro, también lo
+// cobrado fuera de Sindri), lo que está en un pedido de Sindri o facturado y lo pendiente (por el día
+// del trabajo). Solo se consulta: aquí no se cobra ni se factura. Mismos filtros que la lista.
+async function resumen(filtros, usuario) {
+  const desde = esDia(filtros.desde) ? filtros.desde : '';
+  const hasta = esDia(filtros.hasta) ? filtros.hasta : '';
+  const dentro = dia => (!desde || dia >= desde) && (!hasta || dia <= hasta);
+  const lista = await trabajos({ q: filtros.q, clienteId: filtros.clienteId }, usuario);
+
+  const pagoIds = [...new Set(lista.filter(t => t.pagoId).map(t => Number(t.pagoId)))];
+  const pagos = pagoIds.length
+    ? await consulta('SELECT id, codigo, fecha_pago, importe, concepto, metodo FROM ha_pago WHERE id IN (?)', [pagoIds])
+    : [];
+  const meses = new Map();
+  const mes = m => {
+    if (!meses.has(m)) meses.set(m, { mes: m, cobrado: 0, cobros: 0, enSindri: 0, pendiente: 0, horas: 0 });
+    return meses.get(m);
+  };
+
+  const cobros = pagos.map(p => {
+    const suyas = lista.filter(t => Number(t.pagoId) === Number(p.id));
+    return {
+      codigo: p.codigo,
+      fecha: diaDe(p.fecha_pago),
+      cliente: suyas[0] ? suyas[0].cliente : '',
+      concepto: p.concepto || '',
+      metodo: p.metodo || '',
+      importe: redondear(Number(p.importe)),
+      sesiones: suyas.length,
+      horas: suyas.reduce((s, t) => s + Number(t.horas || 0), 0)
+    };
+  }).filter(c => c.fecha && dentro(c.fecha))
+    .sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : 0));
+  cobros.forEach(c => { const m = mes(c.fecha.slice(0, 7)); m.cobrado += c.importe; m.cobros += 1; });
+
+  lista.forEach(t => {
+    const dia = diaDe(t.dia);
+    if (!dia || !dentro(dia)) return;
+    const clave = t.situacion.clave;
+    if (clave === 'PENDIENTE' || clave === 'SINDRI' || clave === 'FACTURADO') {
+      const m = mes(dia.slice(0, 7));
+      if (clave === 'PENDIENTE') m.pendiente += Number(t.importe); else m.enSindri += Number(t.importe);
+    }
+    if (clave !== 'NO_COBRAR') mes(dia.slice(0, 7)).horas += Number(t.horas || 0);
+  });
+
+  const filas = [...meses.values()]
+    .map(m => ({ ...m, cobrado: redondear(m.cobrado), enSindri: redondear(m.enSindri), pendiente: redondear(m.pendiente) }))
+    .sort((a, b) => (a.mes < b.mes ? 1 : -1));
+  const total = clave => redondear(filas.reduce((s, m) => s + m[clave], 0));
+  return {
+    meses: filas,
+    cobros,
+    totales: { cobrado: total('cobrado'), enSindri: total('enSindri'), pendiente: total('pendiente'), horas: total('horas') }
+  };
+}
+
+// 'AAAA-MM-DD' de un DATE de la base (llega como fecha o texto).
+function diaDe(valor) {
+  if (!valor) return '';
+  if (valor instanceof Date) return diaLocal(valor);
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(valor));
+  return m ? m[1] : '';
 }
 
 // En qué punto de la facturación está un trabajo. Lo cobrado o facturado antes en el gestor y lo
@@ -516,6 +582,6 @@ module.exports = {
   config, configGuardar, horasFacturables,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   cobroMarcar, cobroDeshacer,
-  trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
+  trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, resumen, trabajoEstado, trabajosOcupados,
   grupoDe, vista, permisos, permisoGuardar, tarifaVer, tarifaGuardar
 };

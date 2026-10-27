@@ -199,10 +199,16 @@
             <button type="button" class="chip" data-ses="SINDRI" onclick="sesionesFiltrar('SINDRI')">En pedido de Sindri</button>
             <button type="button" class="chip" data-ses="NO_COBRAR" onclick="sesionesFiltrar('NO_COBRAR')">No se facturan</button>
             <button type="button" class="chip" data-ses="COBRADO" onclick="sesionesFiltrar('COBRADO')">Cobradas</button>
+            <button type="button" class="chip" data-ses="RESUMEN" onclick="sesionesFiltrar('RESUMEN')">Resumen por mes</button>
           </div>
 
           <div class="panel panel-filtros">
-            <div class="grid grid-3">
+            <div class="grid grid-4">
+              <div class="field">
+                <label for="sesCliente">Cliente</label>
+                <select id="sesCliente" onchange="sesionesCargar().catch(coreError)"><option value="">Todos</option></select>
+              </div>
+
               <div class="field">
                 <label for="sesBuscar">Buscar</label>
                 <input id="sesBuscar" type="search" placeholder="Concepto, detalle o código" onchange="sesionesCargar().catch(coreError)">

@@ -5,7 +5,8 @@ let moneda = '€';
 let monedaLeida = false;
 let sesionesTodas = [];
 
-const sesFiltros = { cobro: '', desde: '', hasta: '', q: '' };
+const sesFiltros = { cobro: '', desde: '', hasta: '', q: '', clienteId: '' };
+let sesClientesLeidos = false;
 
 function fmtDinero(valor) {
   return Number(valor || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + moneda;
@@ -54,14 +55,72 @@ async function sesionesCargar() {
   sesFiltros.desde = document.getElementById('sesDesde').value;
   sesFiltros.hasta = document.getElementById('sesHasta').value;
   sesFiltros.q = document.getElementById('sesBuscar').value.trim();
+  if (!sesClientesLeidos) {
+    sesClientesLeidos = true;
+    const clientes = await api('GET', '/clientes').catch(function() { return []; });
+    document.getElementById('sesCliente').innerHTML = '<option value="">Todos</option>' + clientes.map(function(c) {
+      return '<option value="' + esc(c.id) + '">' + esc(c.nombre) + '</option>';
+    }).join('');
+  }
+  sesFiltros.clienteId = document.getElementById('sesCliente').value;
 
   const partes = [];
-  ['cobro', 'desde', 'hasta', 'q'].forEach(function(clave) {
-    if (sesFiltros[clave]) partes.push(clave + '=' + encodeURIComponent(sesFiltros[clave]));
+  ['cobro', 'desde', 'hasta', 'q', 'clienteId'].forEach(function(clave) {
+    if (sesFiltros[clave] && !(clave === 'cobro' && sesFiltros.cobro === 'RESUMEN')) partes.push(clave + '=' + encodeURIComponent(sesFiltros[clave]));
   });
+  const consulta = partes.length ? '?' + partes.join('&') : '';
 
-  sesionesTodas = await api('GET', '/trabajos' + (partes.length ? '?' + partes.join('&') : ''));
+  if (sesFiltros.cobro === 'RESUMEN') {
+    resumenPintar(await api('GET', '/resumen' + consulta));
+    return;
+  }
+  sesionesTodas = await api('GET', '/trabajos' + consulta);
   sesionesPintar();
+}
+
+// Cuánto se ha cobrado: por mes y cada cobro. Lo cobrado cuenta por la fecha del cobro (también lo
+// cobrado fuera de Sindri); lo que está en Sindri y lo pendiente, por el día del trabajo.
+function fmtMes(mes) {
+  const m = /^(\d{4})-(\d{2})$/.exec(mes || '');
+  if (!m) return mes || '';
+  const nombre = new Date(Number(m[1]), Number(m[2]) - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  return nombre.charAt(0).toUpperCase() + nombre.slice(1);
+}
+
+function resumenPintar(r) {
+  document.querySelectorAll('[data-ses]').forEach(function(chip) {
+    chip.classList.toggle('is-active', chip.dataset.ses === sesFiltros.cobro);
+  });
+  document.getElementById('sesResumen').innerHTML =
+    '<div class="stats">' +
+      '<div class="stat"><div class="stat-label">Cobrado</div><div class="stat-value">' + fmtDinero(r.totales.cobrado) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">En Sindri o facturado</div><div class="stat-value">' + fmtDinero(r.totales.enSindri) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">Pendiente</div><div class="stat-value">' + fmtDinero(r.totales.pendiente) + '</div></div>' +
+    '</div>' +
+    '<p class="muted" style="margin:-4px 0 12px">Lo cobrado va por la fecha del cobro, también lo que se cobró fuera de Sindri. Lo que está en Sindri y lo pendiente, por el día del trabajo. Aquí solo se consulta: se factura y se cobra en Sindri.</p>';
+
+  if (!r.meses.length) {
+    document.getElementById('sesLista').innerHTML = '<div class="empty">No hay nada con estos filtros.</div>';
+    return;
+  }
+
+  const meses = '<div class="panel"><h3>Por mes</h3><div class="cobro-tabla-wrap"><table class="cobro-tabla">' +
+    '<thead><tr><th>Mes</th><th>Cobrado</th><th>En Sindri o facturado</th><th>Pendiente</th><th>Horas trabajadas</th></tr></thead><tbody>' +
+    r.meses.map(function(m) {
+      return '<tr><td>' + esc(fmtMes(m.mes)) + '</td><td>' + fmtDinero(m.cobrado) + (m.cobros ? ' <span class="muted">(' + m.cobros + ')</span>' : '') +
+        '</td><td>' + fmtDinero(m.enSindri) + '</td><td>' + fmtDinero(m.pendiente) + '</td><td>' + esc(m.horas) + ' h</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+
+  const cobros = r.cobros.length
+    ? '<div class="panel"><h3>Cobros</h3><div class="cobro-tabla-wrap"><table class="cobro-tabla">' +
+      '<thead><tr><th>Fecha</th><th>Cliente</th><th>Concepto</th><th>Sesiones</th><th>Importe</th></tr></thead><tbody>' +
+      r.cobros.map(function(c) {
+        return '<tr><td>' + fmtDia(c.fecha) + '</td><td>' + esc(c.cliente) + '</td><td>' + esc(c.concepto) +
+          ' <span class="muted">' + esc(c.codigo) + '</span></td><td>' + c.sesiones + ' · ' + esc(c.horas) + ' h</td><td>' + fmtDinero(c.importe) + '</td></tr>';
+      }).join('') + '</tbody></table></div></div>'
+    : '<div class="empty">No hay cobros en estas fechas.</div>';
+
+  document.getElementById('sesLista').innerHTML = meses + cobros;
 }
 
 function sesionesFiltrar(cobro) {
@@ -70,7 +129,7 @@ function sesionesFiltrar(cobro) {
 }
 
 function sesionesLimpiar() {
-  ['sesDesde', 'sesHasta', 'sesBuscar'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['sesDesde', 'sesHasta', 'sesBuscar', 'sesCliente'].forEach(function(id) { document.getElementById(id).value = ''; });
   sesionesFiltrar('');
 }
 
