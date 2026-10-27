@@ -236,7 +236,9 @@ const TABLAS = [
   `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS fin DATETIME NULL`,
   `UPDATE ha_trabajo t JOIN ha_nota n ON n.id = t.nota_id
       SET t.fin = n.fecha, t.inicio = DATE_SUB(n.fecha, INTERVAL t.minutos MINUTE)
-    WHERE t.tipo = 'TIEMPO' AND t.fin IS NULL`
+    WHERE t.tipo = 'TIEMPO' AND t.fin IS NULL`,
+  // Horas a cobrar puestas a mano al corregir una sesión; NULL: las calcula Odin.
+  `ALTER TABLE ha_trabajo ADD COLUMN IF NOT EXISTS horas_manual DECIMAL(8,2) NULL`
 ];
 
 async function migrar() {

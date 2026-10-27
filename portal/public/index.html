@@ -331,11 +331,15 @@
             <div class="grid grid-3">
               <div class="field"><label for="cfg_TARIFA_HORA">Tarifa hora</label><input id="cfg_TARIFA_HORA" type="number" step="0.01"></div>
               <div class="field"><label for="cfg_HORAS_MINIMAS">Horas mínimas por sesión</label><input id="cfg_HORAS_MINIMAS" type="number" step="1" min="0"></div>
+              <div class="field"><label for="cfg_COBRO_POR">Cómo se cuentan las horas</label><select id="cfg_COBRO_POR"><option value="FRANJAS">Por franjas de reloj</option><option value="HORAS">Por hora empezada</option></select></div>
+              <div class="field"><label for="cfg_HORARIO_DESDE">Horario normal desde (hora)</label><input id="cfg_HORARIO_DESDE" type="number" step="1" min="0" max="23"></div>
+              <div class="field"><label for="cfg_HORARIO_HASTA">Hasta (hora)</label><input id="cfg_HORARIO_HASTA" type="number" step="1" min="1" max="24"></div>
+              <div class="field"><label for="cfg_RECARGO_HORAS">Horas de recargo fuera de horario</label><input id="cfg_RECARGO_HORAS" type="number" step="1" min="0"></div>
               <div class="field"><label for="cfg_MONEDA">Moneda</label><input id="cfg_MONEDA" type="text"></div>
               <div class="field"><label for="cfg_IVA">IVA %</label><input id="cfg_IVA" type="number" step="0.01"></div>
               <div class="field"><label for="cfg_IRPF">Retención IRPF %</label><input id="cfg_IRPF" type="number" step="0.01"></div>
             </div>
-            <p class="det-desc">El IVA y la retención solo se usan al llevar los servicios y el cliente a Sindri.</p>
+            <p class="det-desc">Por franjas: cada franja de reloj que toca la sesión es una hora (09:50–10:10 son 2) y, si alguna cae fuera del horario normal, se suma el recargo. Vale para las sesiones nuevas y las que se corrigen. El IVA y la retención solo se usan al llevar los servicios y el cliente a Sindri.</p>
 
             <div class="actions">
               <button type="button" class="btn btn-primary" onclick="ajustesGuardar()">Guardar ajustes</button>

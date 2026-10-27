@@ -9,6 +9,12 @@ const CONFIG_DEFECTO = {
   TARIFA_HORA: '15',
   MONEDA: '€',
   HORAS_MINIMAS: '1',
+  // Cómo se cuentan las horas de una sesión. FRANJAS: cada franja de reloj que toca (09:50-10:10
+  // son 2) y, si algo cae fuera del horario, RECARGO_HORAS más. HORAS: por hora empezada.
+  COBRO_POR: 'FRANJAS',
+  HORARIO_DESDE: '8',
+  HORARIO_HASTA: '17',
+  RECARGO_HORAS: '1',
   // El IVA y la retención con que se dan de alta los servicios y los clientes en Sindri.
   IVA: '0',
   IRPF: '0'
@@ -97,9 +103,35 @@ async function clienteGuardar(datos, usuario) {
 
 /* Trabajos */
 
-function horasFacturables(minutos, cfg) {
+const HORA_MS = 3600000;
+
+function horasFacturables(minutos, cfg, inicio, fin) {
   const minimas = Number(cfg.HORAS_MINIMAS || 1);
+  if (String(cfg.COBRO_POR || '').toUpperCase() === 'FRANJAS' && inicio && fin) {
+    return Math.max(minimas, horasPorFranjas(new Date(inicio), new Date(fin), cfg));
+  }
   return Math.max(minimas, Math.ceil(Number(minutos || 0) / 60));
+}
+
+// Franjas de reloj que toca [inicio, fin) y el recargo si alguna está fuera del horario (hora de
+// España). Los cambios de hora de España son de horas enteras: las franjas en UTC coinciden.
+function horasPorFranjas(inicio, fin, cfg) {
+  const primera = Math.floor(inicio.getTime() / HORA_MS);
+  const ultima = Math.floor((fin.getTime() - 1) / HORA_MS);
+  if (!(ultima >= primera)) return 0;
+  const desde = Number(cfg.HORARIO_DESDE);
+  const hasta = Number(cfg.HORARIO_HASTA);
+  const conHorario = Number.isFinite(desde) && Number.isFinite(hasta) && hasta > desde;
+  let fuera = false;
+  for (let h = primera; h <= ultima && conHorario && !fuera; h++) {
+    const hora = horaLocal(new Date(h * HORA_MS));
+    fuera = hora < desde || hora >= hasta;
+  }
+  return (ultima - primera + 1) + (fuera ? Math.max(0, Number(cfg.RECARGO_HORAS) || 0) : 0);
+}
+
+function horaLocal(fecha) {
+  return Number(new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hourCycle: 'h23' }).format(fecha));
 }
 
 function tarifaDe(cliente, cfg) {
@@ -200,10 +232,10 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
   const [inc] = incidenciaId ? await consulta('SELECT cliente_id FROM ha_incidencia WHERE id = ?', [incidenciaId]) : [];
   const [delaIncidencia] = inc && inc.cliente_id ? await consulta('SELECT * FROM ha_cliente WHERE id = ?', [inc.cliente_id]) : [];
   const cliente = delaIncidencia || await clientePorDefecto(autor || '');
-  const horas = horasFacturables(minutos, cfg);
-  const tarifa = await tarifaPara(autor, cliente, cfg);
   const hasta = fin ? new Date(fin) : new Date();
   const desde = inicio ? new Date(inicio) : new Date(hasta.getTime() - Number(minutos || 0) * 60000);
+  const horas = horasFacturables(minutos, cfg, desde, hasta);
+  const tarifa = await tarifaPara(autor, cliente, cfg);
 
   await consulta(
     `INSERT INTO ha_trabajo (codigo, cliente_id, incidencia_id, nota_id, concepto, detalle, dia,
@@ -243,16 +275,17 @@ async function trabajoEditar(id, datos, usuario) {
 
   const { inicio, fin, minutos } = tramoValido(datos.inicio, datos.fin);
   const detalle = datos.texto === undefined ? t.detalle : texto(datos.texto, 20000);
-  const auto = horasFacturables(minutos, await config());
+  const auto = horasFacturables(minutos, await config(), inicio, fin);
   const horas = horasACobrar(datos.horas, auto);
+  const manual = horas !== auto || (datos.horas !== undefined && String(datos.horas).trim() !== '') ? horas : null;
   const importe = redondear(horas * Number(t.tarifa));
 
   // Se carga aquí para no crear una dependencia circular al arrancar.
   const incidencias = require('./incidencias');
   await incidencias.enTransaccion(async con => {
     await con.query(
-      'UPDATE ha_trabajo SET inicio = ?, fin = ?, minutos = ?, horas = ?, importe = ?, dia = ?, detalle = ? WHERE id = ?',
-      [inicio, fin, minutos, horas, importe, diaLocal(inicio), detalle, t.id]);
+      'UPDATE ha_trabajo SET inicio = ?, fin = ?, minutos = ?, horas = ?, importe = ?, dia = ?, detalle = ?, horas_manual = ? WHERE id = ?',
+      [inicio, fin, minutos, horas, importe, diaLocal(inicio), detalle, manual, t.id]);
     if (t.nota_id) {
       await con.query('UPDATE ha_nota SET minutos = ?, fecha = ?, texto = ? WHERE id = ?', [minutos, fin, detalle, t.nota_id]);
     }
@@ -260,7 +293,7 @@ async function trabajoEditar(id, datos, usuario) {
       const antes = tramoTexto(t.inicio, t.fin, Number(t.minutos));
       const despues = tramoTexto(inicio, fin, minutos);
       if (antes !== despues) await incidencias.anotar(con, t.incidencia_id, 'Sesión', antes, despues);
-      if (horas !== auto && Number(t.horas) !== horas) await incidencias.anotar(con, t.incidencia_id, 'Horas a cobrar', String(Number(t.horas)), String(horas));
+      if (manual !== null && Number(t.horas) !== horas) await incidencias.anotar(con, t.incidencia_id, 'Horas a cobrar', String(Number(t.horas)), String(horas));
       await incidencias.tocar(con, t.incidencia_id);
     }
   });
@@ -360,7 +393,7 @@ async function trabajos(filtros, usuario) {
 
   const filas = await consulta(
     `SELECT t.id, t.codigo, t.incidencia_id AS incidenciaId, t.concepto, t.detalle, t.dia, t.minutos,
-            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.inicio, t.fin, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
+            t.horas, t.horas_manual AS horasManual, t.tarifa, t.importe, t.tipo, t.estado, t.inicio, t.fin, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
             t.sindri_empresa, t.autor, c.nombre AS cliente, p.codigo AS pagoCodigo,
             (p.observaciones LIKE '${MARCA_COBRO}%') AS cobroDeshacible
        FROM ha_trabajo t JOIN ha_cliente c ON c.id = t.cliente_id
@@ -480,7 +513,7 @@ async function trabajosOcupados() {
 }
 
 module.exports = {
-  config, configGuardar,
+  config, configGuardar, horasFacturables,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   cobroMarcar, cobroDeshacer,
   trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
