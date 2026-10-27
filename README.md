@@ -261,6 +261,22 @@ apuntando aquí, que es quien las lleva a Sindri.
 
 El enlace a la ficha usa `PORTAL_URL` (o `APP_URL_PUBLICA`, que pone el servidor).
 
+## Corregir una sesión de trabajo
+
+Cada sesión guarda su hora de inicio y de fin (`ha_trabajo.inicio` y `fin`; las de antes se deducen
+de su nota: acabó al guardarla y duró sus minutos). Si el cronómetro se quedó en marcha o el tiempo
+no es el bueno:
+
+- **Corregir** (pestaña Sesiones de la incidencia, o «Corregir horas» en Horas): se cambian el inicio,
+  el fin y lo que se hizo. El tiempo, las horas facturables, el importe (con la tarifa que ya tenía),
+  el día y la nota de la incidencia se recalculan solos, y el historial apunta el cambio («Sesión»).
+- **Añadir sesión con horas**: apunta una sesión con su inicio y su fin, por ejemplo la mañana que
+  se trabajó sin cronómetro. Se guarda también como nota.
+
+Una sesión dura de 1 minuto a 24 horas, no acaba en el futuro y cuenta en el día en que empezó.
+Solo se corrige la propia, y no si ya está cobrada, facturada o en un pedido de Sindri. Lo pendiente
+se pone al día en Sindri unos segundos después. Pruebas: `node portal/tests/sesiones.js`.
+
 ## Pruebas de casuística
 
 `portal/tests/casuistica.js` recorre los grafos de estados (incidencia, cronómetro y trabajo) y

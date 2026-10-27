@@ -1448,3 +1448,9 @@ textarea {
     border-radius: 20px;
   }
 }
+
+/* Sesiones: hora de inicio y fin bajo el día, y la duración en el diálogo de corregir. */
+.muted {
+  font-size: 13px;
+  color: var(--muted);
+}

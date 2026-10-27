@@ -102,6 +102,9 @@ function sesionesPintar() {
     if (t.incidenciaId) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="detalleTab=\'sesiones\'; detalleAbrir(' + t.incidenciaId + ')">Ver incidencia</button>');
     }
+    if (sesionEditable(t)) {
+      acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sesionAbrir(' + t.id + ', sesionesTodas)">Corregir horas</button>');
+    }
     if (libre && !t.deOtro) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sesionEstado(' + t.id + ', \'' +
         (t.estado === 'NO_COBRAR' ? 'CERRADA' : 'NO_COBRAR') + '\')">' + (t.estado === 'NO_COBRAR' ? 'Volver a facturar' : 'No facturar') + '</button>');
@@ -115,7 +118,8 @@ function sesionesPintar() {
       '</div>' +
       '<div class="doc-title">' + esc(t.concepto) + '</div>' +
       '<div class="doc-sub">' + esc(t.codigo) + (t.deOtro ? ' · de ' + esc(t.autor || 'general') : '') + ' · ' +
-        (t.tipo === 'UNICO' ? 'Gasto suelto' : fmtDuracion(t.minutos) + ' reales · ' + esc(t.horas) + ' h a ' + fmtDinero(t.tarifa)) + '</div>' +
+        (t.tipo === 'UNICO' ? 'Gasto suelto' : (t.inicio && t.fin ? esc(fmtTramo(t.inicio, t.fin)) + ' · ' : '') +
+          fmtDuracion(t.minutos) + ' reales · ' + esc(t.horas) + ' h a ' + fmtDinero(t.tarifa)) + '</div>' +
       (acciones.length ? '<div class="doc-actions">' + acciones.join('') + '</div>' : '') +
     '</div>';
   }).join('') + '</div>';

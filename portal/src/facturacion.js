@@ -163,9 +163,37 @@ async function codigoLibre(prefijo, fecha) {
   }
 }
 
+// Hora de inicio y fin de una sesión, tal como llegan de la pantalla (instantes ISO). Una sesión
+// dura de 1 minuto a 24 horas y no acaba en el futuro.
+const MAX_SESION_MIN = 24 * 60;
+
+function tramoValido(inicio, fin) {
+  const a = new Date(inicio || '');
+  const b = new Date(fin || '');
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) throw new ErrorUsuario('Indica la hora de inicio y la de fin.');
+  a.setSeconds(0, 0);
+  b.setSeconds(0, 0);
+  const minutos = Math.round((b - a) / 60000);
+  if (minutos < 1) throw new ErrorUsuario('La hora de fin tiene que ser posterior a la de inicio.');
+  if (minutos > MAX_SESION_MIN) throw new ErrorUsuario('Una sesión no puede superar las 24 horas. Si trabajaste dos días, apunta dos sesiones.');
+  if (b.getTime() > Date.now() + 5 * 60000) throw new ErrorUsuario('La sesión no puede acabar en el futuro.');
+  return { inicio: a, fin: b, minutos };
+}
+
+// '26/10/2026 09:45 – 27/10/2026 02:00 (16 h 15 min)', en hora de España, para el historial.
+function tramoTexto(inicio, fin, minutos) {
+  const f = new Intl.DateTimeFormat('es-ES', {
+    timeZone: 'Europe/Madrid', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  const h = Math.floor(minutos / 60);
+  const duracion = (h ? h + ' h ' : '') + (minutos % 60) + ' min';
+  return (inicio ? f.format(new Date(inicio)) + ' – ' : '') + (fin ? f.format(new Date(fin)) : '') + ' (' + duracion + ')';
+}
+
 // Sesión de trabajo: cada una se redondea a horas enteras con el mínimo
-// configurado, como hacía el gestor antiguo.
-async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, fecha, autor }) {
+// configurado, como hacía el gestor antiguo. inicio y fin: cuándo fue; si no
+// vienen, acabó ahora y duró sus minutos. Cuenta en el día en que empezó.
+async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, inicio, fin, autor }) {
   const cfg = await config();
   // El cliente de la incidencia; si no tiene, el de quien trabaja. Compartir la incidencia
   // comparte también a quién se cobra.
@@ -174,15 +202,56 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
   const cliente = delaIncidencia || await clientePorDefecto(autor || '');
   const horas = horasFacturables(minutos, cfg);
   const tarifa = await tarifaPara(autor, cliente, cfg);
-  const momento = fecha || new Date();
+  const hasta = fin ? new Date(fin) : new Date();
+  const desde = inicio ? new Date(inicio) : new Date(hasta.getTime() - Number(minutos || 0) * 60000);
 
   await consulta(
     `INSERT INTO ha_trabajo (codigo, cliente_id, incidencia_id, nota_id, concepto, detalle, dia,
-                             minutos, horas, tarifa, importe, tipo, estado, autor, creado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', ?, UTC_TIMESTAMP())`,
-    [await codigoLibre('SES', momento), cliente.id, incidenciaId, notaId || null, texto(concepto, 255),
-      texto(detalle, 20000), diaLocal(momento), minutos, horas, tarifa, redondear(horas * tarifa), autor || null]
+                             minutos, horas, tarifa, importe, tipo, estado, autor, inicio, fin, creado_en)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TIEMPO', 'CERRADA', ?, ?, ?, UTC_TIMESTAMP())`,
+    [await codigoLibre('SES', desde), cliente.id, incidenciaId, notaId || null, texto(concepto, 255),
+      texto(detalle, 20000), diaLocal(desde), minutos, horas, tarifa, redondear(horas * tarifa), autor || null,
+      desde, hasta]
   );
+}
+
+// Corrige una sesión de trabajo: su hora de inicio y de fin y lo que se hizo. Se recalculan el
+// tiempo, las horas facturables, el importe (con la tarifa que ya tenía) y el día, y la nota de la
+// incidencia cambia con ella. Lo que ya está cobrado, facturado o en un pedido de Sindri no se toca.
+async function trabajoEditar(id, datos, usuario) {
+  const [t] = await consulta(
+    `SELECT id, tipo, incidencia_id, nota_id, detalle, minutos, tarifa, inicio, fin, pago_id,
+            sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?`, [Number(id) || 0]);
+  if (!t) throw new ErrorUsuario('Sesión no encontrada.', 404);
+  if (t.tipo !== 'TIEMPO') throw new ErrorUsuario('Solo se cambian las horas de las sesiones de trabajo.', 409);
+  if (usuario !== undefined && !(await vista(usuario)).esMio(t)) throw new ErrorUsuario('Esa sesión no es tuya: la cambia quien la apuntó.', 403);
+  if (t.pago_id) throw new ErrorUsuario('No se puede cambiar una sesión ya cobrada.', 409);
+  if (t.sindri_pedido) throw new ErrorUsuario('No se puede cambiar: la sesión está en el pedido ' + t.sindri_pedido + ' de Sindri.', 409);
+  const doc = (await trabajosOcupados()).get(t.id);
+  if (doc) throw new ErrorUsuario('No se puede cambiar: la sesión está en ' + doc.codigo + '.', 409);
+
+  const { inicio, fin, minutos } = tramoValido(datos.inicio, datos.fin);
+  const detalle = datos.texto === undefined ? t.detalle : texto(datos.texto, 20000);
+  const horas = horasFacturables(minutos, await config());
+  const importe = redondear(horas * Number(t.tarifa));
+
+  // Se carga aquí para no crear una dependencia circular al arrancar.
+  const incidencias = require('./incidencias');
+  await incidencias.enTransaccion(async con => {
+    await con.query(
+      'UPDATE ha_trabajo SET inicio = ?, fin = ?, minutos = ?, horas = ?, importe = ?, dia = ?, detalle = ? WHERE id = ?',
+      [inicio, fin, minutos, horas, importe, diaLocal(inicio), detalle, t.id]);
+    if (t.nota_id) {
+      await con.query('UPDATE ha_nota SET minutos = ?, fecha = ?, texto = ? WHERE id = ?', [minutos, fin, detalle, t.nota_id]);
+    }
+    if (t.incidencia_id) {
+      const antes = tramoTexto(t.inicio, t.fin, Number(t.minutos));
+      const despues = tramoTexto(inicio, fin, minutos);
+      if (antes !== despues) await incidencias.anotar(con, t.incidencia_id, 'Sesión', antes, despues);
+      await incidencias.tocar(con, t.incidencia_id);
+    }
+  });
+  return { id: t.id, incidenciaId: t.incidencia_id, minutos, horas, importe };
 }
 
 async function gastoCrear(datos, autor) {
@@ -278,7 +347,7 @@ async function trabajos(filtros, usuario) {
 
   const filas = await consulta(
     `SELECT t.id, t.codigo, t.incidencia_id AS incidenciaId, t.concepto, t.detalle, t.dia, t.minutos,
-            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
+            t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.inicio, t.fin, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
             t.sindri_empresa, t.autor, c.nombre AS cliente
        FROM ha_trabajo t JOIN ha_cliente c ON c.id = t.cliente_id
       ${donde.length ? 'WHERE ' + donde.join(' AND ') : ''}
@@ -343,6 +412,6 @@ async function trabajosOcupados() {
 module.exports = {
   config, configGuardar,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
-  trabajoDeTiempo, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
+  trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
   grupoDe, vista, permisos, permisoGuardar, tarifaVer, tarifaGuardar
 };

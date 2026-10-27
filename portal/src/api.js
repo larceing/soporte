@@ -47,17 +47,19 @@ async function soloGeneral(req) {
 // Guarda una nota en la incidencia y, si lleva tiempo, la sesión facturable. El
 // tiempo solo se registra en incidencias abiertas: si ya está resuelta hay que
 // reabrirla, y así el seguimiento refleja que se volvió a trabajar en ella.
-async function registrarNota(incidenciaId, nota, minutos, autor) {
+// tramo: { inicio, fin } (Date) si se sabe cuándo fue la sesión; si no, acabó ahora.
+async function registrarNota(incidenciaId, nota, minutos, autor, tramo) {
   if (minutos > 0) {
     const previa = await incidencias.obtener(incidenciaId);
     if (!previa.abierta) {
       throw new ErrorUsuario('La incidencia está ' + previa.estadoTexto.toLowerCase() +
         '. Reábrela para registrar más tiempo.', 409);
     }
-    if (minutos > 24 * 60) throw new ErrorUsuario('Una sesión no puede superar las 24 horas.');
+    if (minutos > fact.MAX_SESION_MIN) throw new ErrorUsuario('Una sesión no puede superar las 24 horas.');
   }
 
-  const { notaId, incidencia } = await incidencias.anadirNota(incidenciaId, { texto: nota, minutos: minutos, autor: autor });
+  const fin = tramo ? tramo.fin : null;
+  const { notaId, incidencia } = await incidencias.anadirNota(incidenciaId, { texto: nota, minutos: minutos, autor: autor, fecha: fin });
 
   if (minutos > 0) {
     await fact.trabajoDeTiempo({
@@ -66,6 +68,8 @@ async function registrarNota(incidenciaId, nota, minutos, autor) {
       concepto: incidencia.titulo,
       detalle: nota,
       minutos: minutos,
+      inicio: tramo ? tramo.inicio : null,
+      fin: fin,
       autor: autor
     });
   }
@@ -211,12 +215,15 @@ router.patch('/incidencias/:id', ruta(async (req, res) => {
   res.json(await conSesiones(await incidencias.actualizar(req.params.id, cambios), req.usuario.usuario));
 }));
 
+// Con inicio y fin es una sesión apuntada a mano (la que se olvidó con el cronómetro, por
+// ejemplo): el tiempo sale de las dos horas.
 router.post('/incidencias/:id/notas', ruta(async (req, res) => {
   const nota = texto(req.body.texto, 20000);
-  const minutos = Math.max(0, Math.round(Number(req.body.minutos) || 0));
+  const tramo = req.body.inicio || req.body.fin ? fact.tramoValido(req.body.inicio, req.body.fin) : null;
+  const minutos = tramo ? tramo.minutos : Math.max(0, Math.round(Number(req.body.minutos) || 0));
   if (!nota && !minutos) throw new ErrorUsuario('Escribe una nota o indica el tiempo.');
 
-  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos, req.usuario.usuario), req.usuario.usuario));
+  res.status(201).json(await conSesiones(await registrarNota(req.params.id, nota, minutos, req.usuario.usuario, tramo), req.usuario.usuario));
 }));
 
 router.post('/incidencias/:id/adjuntos', ruta(async (req, res) => {
@@ -276,11 +283,13 @@ router.post('/cronometro/parar', ruta(async (req, res) => {
   // Un cronómetro olvidado no puede generar una sesión de días: se limita a
   // 24 horas y se avisa para que se corrija a mano si hace falta.
   const reales = Math.max(1, Math.ceil((Date.now() - new Date(activo.inicio).getTime()) / 60000));
-  const minutos = Math.min(reales, 24 * 60);
+  const minutos = Math.min(reales, fact.MAX_SESION_MIN);
+  const inicio = new Date(activo.inicio);
+  const tramo = { inicio: inicio, fin: new Date(inicio.getTime() + minutos * 60000) };
 
   let incidencia;
   try {
-    incidencia = await registrarNota(activo.incidenciaId, texto(req.body.texto, 20000), minutos, req.usuario.usuario);
+    incidencia = await registrarNota(activo.incidenciaId, texto(req.body.texto, 20000), minutos, req.usuario.usuario, tramo);
   } catch (err) {
     // Si la incidencia ya no existe o se cerró por otro lado, el cronómetro
     // no debe quedarse bloqueado para siempre.
@@ -475,6 +484,14 @@ router.put('/compartir', ruta(async (req, res) => {
 router.post('/trabajos/gasto', ruta(async (req, res) => {
   await fact.gastoCrear(req.body || {}, req.usuario.usuario);
   res.status(201).json({ ok: true });
+}));
+
+// Corregir una sesión: hora de inicio, de fin y lo que se hizo. Devuelve la incidencia al día.
+router.put('/trabajos/:id', ruta(async (req, res) => {
+  const hecho = await fact.trabajoEditar(req.params.id, req.body || {}, req.usuario.usuario);
+  res.json(hecho.incidenciaId
+    ? { ...hecho, incidencia: await conSesiones(await incidencias.obtener(hecho.incidenciaId), req.usuario.usuario) }
+    : hecho);
 }));
 
 router.post('/trabajos/:id/estado', ruta(async (req, res) => {

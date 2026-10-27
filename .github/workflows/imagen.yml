@@ -30,7 +30,7 @@ jobs:
             node --check "$f"
           done
       - name: prefijo de ruta, Keycloak y Sindri
-        run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/exportar-sindri.js && node portal/tests/sindri.js && node portal/tests/tareas.js
+        run: node portal/tests/ruta.js && node portal/tests/sso.js && node portal/tests/exportar-sindri.js && node portal/tests/sindri.js && node portal/tests/tareas.js && node portal/tests/sesiones.js
       - name: la imagen se construye y arranca el código
         run: |
           docker build -t portal-prueba portal

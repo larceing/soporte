@@ -505,6 +505,27 @@
     </div>
   </div>
 
+  <div id="dialogoSesion" class="dialog hidden">
+    <div class="dialog-box" role="dialog" aria-labelledby="dialogoSesionTitulo">
+      <h3 id="dialogoSesionTitulo">Corregir sesión</h3>
+      <p id="dialogoSesionAyuda">El tiempo, las horas facturables y el importe se recalculan solos.</p>
+
+      <div class="grid" style="margin-top:16px">
+        <div class="field"><label for="sesInicio">Inicio</label><input id="sesInicio" type="datetime-local" oninput="sesionDuracionPintar()"></div>
+        <div class="field"><label for="sesFin">Fin</label><input id="sesFin" type="datetime-local" oninput="sesionDuracionPintar()"></div>
+        <div class="field field-full"><label for="sesTexto">Qué has hecho</label><textarea id="sesTexto"></textarea></div>
+      </div>
+      <p id="sesDuracion" class="muted"></p>
+
+      <div id="mensajeSesion" class="message hidden"></div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" onclick="sesionCerrar()">Cancelar</button>
+        <button type="button" id="sesionBoton" class="btn btn-primary" onclick="sesionGuardar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="dialogoConfirmar" class="dialog hidden">
     <div class="dialog-box" role="dialog" aria-labelledby="confirmarTitulo">
       <h3 id="confirmarTitulo"></h3>
