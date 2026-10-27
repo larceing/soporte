@@ -514,6 +514,7 @@
       <div class="grid" style="margin-top:16px">
         <div class="field"><label for="sesInicio">Inicio</label><input id="sesInicio" type="datetime-local" oninput="sesionDuracionPintar()"></div>
         <div class="field"><label for="sesFin">Fin</label><input id="sesFin" type="datetime-local" oninput="sesionDuracionPintar()"></div>
+        <div class="field"><label for="sesHoras">Horas a cobrar</label><input id="sesHoras" type="number" min="0.25" max="48" step="0.25" placeholder="Automático" oninput="sesionDuracionPintar()"></div>
         <div class="field field-full"><label for="sesTexto">Qué has hecho</label><textarea id="sesTexto"></textarea></div>
       </div>
       <p id="sesDuracion" class="muted"></p>

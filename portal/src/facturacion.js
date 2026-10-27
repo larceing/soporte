@@ -218,9 +218,20 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
 // Corrige una sesión de trabajo: su hora de inicio y de fin y lo que se hizo. Se recalculan el
 // tiempo, las horas facturables, el importe (con la tarifa que ya tenía) y el día, y la nota de la
 // incidencia cambia con ella. Lo que ya está cobrado, facturado o en un pedido de Sindri no se toca.
+// Horas a cobrar puestas a mano al corregir una sesión (p. ej. un recargo por franja). Vacío: las
+// que salen solas.
+function horasACobrar(valor, auto) {
+  if (valor === undefined || valor === null || String(valor).trim() === '') return auto;
+  const h = Number(String(valor).replace(',', '.'));
+  if (!Number.isFinite(h) || h <= 0 || h > 48) throw new ErrorUsuario('Las horas a cobrar van de 0,25 a 48.');
+  const redondeadas = Math.round(h * 4) / 4;
+  if (redondeadas <= 0) throw new ErrorUsuario('Las horas a cobrar van de 0,25 a 48.');
+  return redondeadas;
+}
+
 async function trabajoEditar(id, datos, usuario) {
   const [t] = await consulta(
-    `SELECT id, tipo, incidencia_id, nota_id, detalle, minutos, tarifa, inicio, fin, pago_id,
+    `SELECT id, tipo, incidencia_id, nota_id, detalle, minutos, horas, tarifa, inicio, fin, pago_id,
             sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?`, [Number(id) || 0]);
   if (!t) throw new ErrorUsuario('Sesión no encontrada.', 404);
   if (t.tipo !== 'TIEMPO') throw new ErrorUsuario('Solo se cambian las horas de las sesiones de trabajo.', 409);
@@ -232,7 +243,8 @@ async function trabajoEditar(id, datos, usuario) {
 
   const { inicio, fin, minutos } = tramoValido(datos.inicio, datos.fin);
   const detalle = datos.texto === undefined ? t.detalle : texto(datos.texto, 20000);
-  const horas = horasFacturables(minutos, await config());
+  const auto = horasFacturables(minutos, await config());
+  const horas = horasACobrar(datos.horas, auto);
   const importe = redondear(horas * Number(t.tarifa));
 
   // Se carga aquí para no crear una dependencia circular al arrancar.
@@ -248,6 +260,7 @@ async function trabajoEditar(id, datos, usuario) {
       const antes = tramoTexto(t.inicio, t.fin, Number(t.minutos));
       const despues = tramoTexto(inicio, fin, minutos);
       if (antes !== despues) await incidencias.anotar(con, t.incidencia_id, 'Sesión', antes, despues);
+      if (horas !== auto && Number(t.horas) !== horas) await incidencias.anotar(con, t.incidencia_id, 'Horas a cobrar', String(Number(t.horas)), String(horas));
       await incidencias.tocar(con, t.incidencia_id);
     }
   });

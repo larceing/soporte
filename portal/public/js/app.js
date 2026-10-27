@@ -639,8 +639,18 @@ function sesionAbrir(id, lista) {
   if (!t) return;
   sesionEditando = { id: t.id, desdeHoras: Boolean(lista) };
   document.getElementById('dialogoSesionTitulo').textContent = 'Corregir sesión';
-  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos.';
+  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos. Deja «Horas a cobrar» vacío para que las calcule Odin.';
   sesionDialogo(t.inicio, t.fin, t.detalle);
+  // Si se le pusieron horas a mano, se muestran; si son las de siempre, queda en automático.
+  const horas = Number(t.horas);
+  document.getElementById('sesHoras').value = horas && horas !== sesionHorasAuto(Number(t.minutos)) ? String(horas) : '';
+  document.getElementById('sesHoras').closest('.field').classList.remove('hidden');
+  sesionDuracionPintar();
+}
+
+// Las que calcula Odin solo: 1 h mínimo y luego por hora empezada.
+function sesionHorasAuto(minutos) {
+  return Math.max(1, Math.ceil((minutos || 0) / 60));
 }
 
 function sesionNueva() {
@@ -649,6 +659,8 @@ function sesionNueva() {
   document.getElementById('dialogoSesionAyuda').textContent = 'Para el tiempo que trabajaste sin cronómetro. Se guarda también como nota.';
   const ahora = new Date();
   sesionDialogo(new Date(ahora.getTime() - 3600000).toISOString(), ahora.toISOString(), '');
+  document.getElementById('sesHoras').value = '';
+  document.getElementById('sesHoras').closest('.field').classList.add('hidden');
 }
 
 function sesionDialogo(inicio, fin, texto) {
@@ -665,7 +677,10 @@ function sesionDuracionPintar() {
   const a = deCampoFecha(document.getElementById('sesInicio').value);
   const b = deCampoFecha(document.getElementById('sesFin').value);
   const minutos = a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : 0;
-  document.getElementById('sesDuracion').textContent = minutos > 0 ? 'Duración: ' + fmtDuracion(minutos) : '';
+  const manual = document.getElementById('sesHoras').value;
+  document.getElementById('sesDuracion').textContent = minutos > 0
+    ? 'Duración: ' + fmtDuracion(minutos) + '. Se cobran ' + (manual ? String(manual).replace('.', ',') + ' h (a mano)' : sesionHorasAuto(minutos) + ' h') + '.'
+    : '';
 }
 
 function sesionCerrar() {
@@ -681,6 +696,7 @@ async function sesionGuardar() {
     texto: document.getElementById('sesTexto').value
   };
   const editando = sesionEditando;
+  if (editando.id) datos.horas = document.getElementById('sesHoras').value;
   boton.disabled = true;
 
   try {

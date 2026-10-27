@@ -67,6 +67,17 @@ const fact = require('../src/facturacion');
   assert.strictEqual(t.detalle, 'Requisitos API y acceso');
   assert.strictEqual(t.horas, 1);
 
+  // Horas a cobrar a mano (recargo por franja): 11 minutos que se cobran como 2 h.
+  const m = await fact.trabajoEditar(7, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z', horas: '2' }, 'luis');
+  assert.deepStrictEqual([m.minutos, m.horas, m.importe], [11, 2, 30]);
+  assert.strictEqual(cambios[cambios.length - 1].campo, 'Horas a cobrar');
+  assert.strictEqual(cambios[cambios.length - 1].despues, '2');
+  // Vacío vuelve a lo automático; 1,5 vale; lo que no es número, no.
+  assert.strictEqual((await fact.trabajoEditar(7, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z', horas: '' }, 'luis')).horas, 1);
+  assert.strictEqual((await fact.trabajoEditar(7, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z', horas: '1,5' }, 'luis')).importe, 22.5);
+  await assert.rejects(fact.trabajoEditar(7, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z', horas: 'dos' }, 'luis'), /0,25 a 48/);
+  await assert.rejects(fact.trabajoEditar(7, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z', horas: '60' }, 'luis'), /0,25 a 48/);
+
   // Lo que no vale.
   await assert.rejects(fact.trabajoEditar(7, { inicio: '2026-10-26T10:00:00Z', fin: '2026-10-26T09:00:00Z' }, 'luis'), /posterior/);
   await assert.rejects(fact.trabajoEditar(7, { inicio: '2026-10-25T08:00:00Z', fin: '2026-10-26T09:00:00Z' }, 'luis'), /24 horas/);
