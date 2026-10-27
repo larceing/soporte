@@ -462,6 +462,11 @@ router.get('/trabajos', ruta(async (req, res) => {
   res.json(await fact.trabajos(req.query, req.usuario.usuario));
 }));
 
+// Cuánto se ha cobrado, está en Sindri y queda pendiente, por mes. Solo consulta.
+router.get('/resumen', ruta(async (req, res) => {
+  res.json(await fact.resumen(req.query, req.usuario.usuario));
+}));
+
 // Tu tarifa por hora: la de tus sesiones nuevas.
 router.get('/horas/tarifa', ruta(async (req, res) => {
   res.json(await fact.tarifaVer(req.usuario.usuario));
