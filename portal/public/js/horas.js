@@ -91,6 +91,13 @@ function sesionesPintar() {
       '<div class="stat"><div class="stat-label">Importe</div><div class="stat-value">' + fmtDinero(importe) + '</div></div>' +
     '</div>';
 
+  const cobrables = cobrablesDe(lista);
+  if (cobrables.length) {
+    document.getElementById('sesResumen').innerHTML +=
+      '<div class="actions" style="margin:-4px 0 12px"><button type="button" class="btn btn-secondary btn-sm" onclick="cobroAbrir()">' +
+      'Marcar como cobradas (' + cobrables.length + ')</button></div>';
+  }
+
   if (!lista.length) {
     document.getElementById('sesLista').innerHTML = '<div class="empty">No hay sesiones con estos filtros.</div>';
     return;
@@ -101,6 +108,9 @@ function sesionesPintar() {
     const acciones = [];
     if (t.incidenciaId) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="detalleTab=\'sesiones\'; detalleAbrir(' + t.incidenciaId + ')">Ver incidencia</button>');
+    }
+    if (t.cobroDeshacible && !t.deOtro) {
+      acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="cobroDeshacer(' + t.pagoId + ', \'' + esc(t.pagoCodigo) + '\')">Deshacer cobro</button>');
     }
     if (sesionEditable(t)) {
       acciones.push('<button type="button" class="btn btn-secondary btn-sm" onclick="sesionAbrir(' + t.id + ', sesionesTodas)">Corregir horas</button>');
@@ -123,6 +133,64 @@ function sesionesPintar() {
       (acciones.length ? '<div class="doc-actions">' + acciones.join('') + '</div>' : '') +
     '</div>';
   }).join('') + '</div>';
+}
+
+/* Cobros hechos fuera de Sindri: se apuntan aquí para que esas sesiones no se vuelvan a facturar */
+
+// Las de la lista que se pueden marcar: tuyas, sin cobrar y que se facturan.
+function cobrablesDe(lista) {
+  return lista.filter(function(t) { return !t.deOtro && !t.pagoId && t.estado !== 'NO_COBRAR'; });
+}
+
+function cobroAbrir() {
+  const lista = cobrablesDe(sesionesTodas);
+  const clientes = Array.from(new Set(lista.map(function(t) { return t.cliente; })));
+  const dias = lista.map(function(t) { return t.dia; }).sort();
+  const importe = lista.reduce(function(s, t) { return s + Number(t.importe); }, 0);
+  const enSindri = lista.filter(function(t) { return t.sindriPedido; }).length;
+  document.getElementById('cobroAyuda').textContent =
+    lista.length + (lista.length === 1 ? ' sesión' : ' sesiones') + ' de ' + clientes.join(', ') + ', del ' + fmtDia(dias[0]) +
+    ' al ' + fmtDia(dias[dias.length - 1]) + ', por ' + fmtDinero(importe) + '. Usa los filtros para elegir solo las que se cobraron.' +
+    (enSindri ? ' ' + enSindri + ' están en un pedido de Sindri: anúlalo allí si era un duplicado.' : '');
+  document.getElementById('cobroFecha').value = hoyIso();
+  document.getElementById('cobroConcepto').value = '';
+  document.getElementById('cobroNota').value = '';
+  coreMensaje('mensajeCobro', '');
+  document.getElementById('dialogoCobro').classList.remove('hidden');
+}
+
+function cobroCerrar() {
+  document.getElementById('dialogoCobro').classList.add('hidden');
+}
+
+async function cobroGuardar() {
+  const boton = document.getElementById('cobroBoton');
+  boton.disabled = true;
+  try {
+    const r = await api('POST', '/cobros', {
+      ids: cobrablesDe(sesionesTodas).map(function(t) { return t.id; }),
+      fecha: document.getElementById('cobroFecha').value,
+      concepto: document.getElementById('cobroConcepto').value,
+      nota: document.getElementById('cobroNota').value
+    });
+    cobroCerrar();
+    await sesionesCargar();
+    coreMensaje('mensajeGlobal', 'Cobro ' + r.codigo + ' apuntado: ' + r.sesiones + ' sesiones, ' + fmtDinero(r.importe) + '.', 'ok');
+  } catch (err) {
+    coreMensaje('mensajeCobro', err.message, 'error');
+  }
+  boton.disabled = false;
+}
+
+async function cobroDeshacer(pagoId, codigo) {
+  const si = await coreConfirmar('Deshacer cobro', 'Las sesiones del cobro ' + codigo + ' vuelven a quedar sin cobrar.', 'Deshacer');
+  if (!si) return;
+  try {
+    await api('POST', '/cobros/' + pagoId + '/deshacer', {});
+    await sesionesCargar();
+  } catch (err) {
+    coreError(err);
+  }
 }
 
 async function sesionEstado(id, estado) {
