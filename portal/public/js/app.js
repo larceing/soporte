@@ -565,18 +565,20 @@ function tabNotas(inc) {
 
 function tabSesiones(inc) {
   if (!inc.sesiones.length) {
-    return '<div class="panel"><div class="empty">Todavía no hay sesiones de trabajo. Usa el cronómetro o añade una nota con minutos.</div></div>';
+    return '<div class="panel"><div class="empty">Todavía no hay sesiones de trabajo. Usa el cronómetro o añade una nota con minutos.</div>' +
+      botonSesionNueva(inc) + '</div>';
   }
 
   const total = inc.sesiones.reduce(function(s, t) { return s + Number(t.importe); }, 0);
   const horas = inc.sesiones.reduce(function(s, t) { return s + Number(t.horas); }, 0);
   const filas = inc.sesiones.map(function(t) {
     return '<tr>' +
-      '<td>' + fmtDia(t.dia) + '</td>' +
+      '<td>' + fmtDia(t.dia) + (t.inicio && t.fin ? '<div class="muted">' + esc(fmtTramo(t.inicio, t.fin)) + '</div>' : '') + '</td>' +
       '<td>' + fmtDuracion(t.minutos) + '</td>' +
       '<td>' + esc(t.horas) + ' h</td>' +
       '<td style="text-align:right;white-space:nowrap">' + fmtDinero(t.importe) + '</td>' +
       '<td>' + badgeSituacion(t.situacion) + '</td>' +
+      '<td>' + (sesionEditable(t) ? '<button type="button" class="btn btn-secondary btn-sm" onclick="sesionAbrir(' + t.id + ')">Corregir</button>' : '') + '</td>' +
     '</tr>';
   }).join('');
 
@@ -586,10 +588,120 @@ function tabSesiones(inc) {
       '<div><span>Importe</span><strong>' + fmtDinero(total) + '</strong></div>' +
     '</div>' +
     '<div class="cobro-tabla-wrap"><table class="cobro-tabla">' +
-      '<thead><tr><th>Fecha</th><th>Tiempo real</th><th>Facturable</th><th style="text-align:right">Importe</th><th>Facturación</th></tr></thead>' +
+      '<thead><tr><th>Fecha</th><th>Tiempo real</th><th>Facturable</th><th style="text-align:right">Importe</th><th>Facturación</th><th></th></tr></thead>' +
       '<tbody>' + filas + '</tbody>' +
     '</table></div>' +
+    botonSesionNueva(inc) +
   '</div>';
+}
+
+function botonSesionNueva(inc) {
+  return inc.abierta
+    ? '<div class="actions"><button type="button" class="btn btn-secondary" onclick="sesionNueva()">Añadir sesión con horas</button></div>'
+    : '';
+}
+
+/* Corregir o apuntar una sesión de trabajo con su hora de inicio y de fin */
+
+let sesionEditando = null;
+
+// Solo las sesiones propias que aún no están cobradas, facturadas ni en un pedido de Sindri.
+function sesionEditable(t) {
+  return t.tipo === 'TIEMPO' && !t.deOtro && (t.situacion.clave === 'PENDIENTE' || t.situacion.clave === 'NO_COBRAR');
+}
+
+// Un instante ISO en el formato de <input type="datetime-local">, en la hora del navegador.
+function aCampoFecha(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const dos = function(n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate()) + 'T' + dos(d.getHours()) + ':' + dos(d.getMinutes());
+}
+
+function deCampoFecha(valor) {
+  const d = valor ? new Date(valor) : null;
+  return d && !isNaN(d.getTime()) ? d.toISOString() : '';
+}
+
+function fmtHora(iso) {
+  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+// '09:45 – 14:30', o con el día de fin si acaba otro día.
+function fmtTramo(inicio, fin) {
+  const otroDia = new Date(inicio).toDateString() !== new Date(fin).toDateString();
+  return fmtHora(inicio) + ' – ' + (otroDia ? fmtFechaHora(fin) : fmtHora(fin));
+}
+
+// lista: de dónde sale la sesión (la ficha de la incidencia o la pantalla de Horas).
+function sesionAbrir(id, lista) {
+  const t = (lista || (detalleActual && detalleActual.sesiones) || []).find(function(x) { return x.id === id; });
+  if (!t) return;
+  sesionEditando = { id: t.id, desdeHoras: Boolean(lista) };
+  document.getElementById('dialogoSesionTitulo').textContent = 'Corregir sesión';
+  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos.';
+  sesionDialogo(t.inicio, t.fin, t.detalle);
+}
+
+function sesionNueva() {
+  sesionEditando = { id: null, incidenciaId: detalleActual.id };
+  document.getElementById('dialogoSesionTitulo').textContent = 'Añadir sesión';
+  document.getElementById('dialogoSesionAyuda').textContent = 'Para el tiempo que trabajaste sin cronómetro. Se guarda también como nota.';
+  const ahora = new Date();
+  sesionDialogo(new Date(ahora.getTime() - 3600000).toISOString(), ahora.toISOString(), '');
+}
+
+function sesionDialogo(inicio, fin, texto) {
+  document.getElementById('sesInicio').value = aCampoFecha(inicio);
+  document.getElementById('sesFin').value = aCampoFecha(fin);
+  document.getElementById('sesTexto').value = texto || '';
+  coreMensaje('mensajeSesion', '');
+  sesionDuracionPintar();
+  document.getElementById('dialogoSesion').classList.remove('hidden');
+  document.getElementById('sesInicio').focus();
+}
+
+function sesionDuracionPintar() {
+  const a = deCampoFecha(document.getElementById('sesInicio').value);
+  const b = deCampoFecha(document.getElementById('sesFin').value);
+  const minutos = a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : 0;
+  document.getElementById('sesDuracion').textContent = minutos > 0 ? 'Duración: ' + fmtDuracion(minutos) : '';
+}
+
+function sesionCerrar() {
+  document.getElementById('dialogoSesion').classList.add('hidden');
+  sesionEditando = null;
+}
+
+async function sesionGuardar() {
+  const boton = document.getElementById('sesionBoton');
+  const datos = {
+    inicio: deCampoFecha(document.getElementById('sesInicio').value),
+    fin: deCampoFecha(document.getElementById('sesFin').value),
+    texto: document.getElementById('sesTexto').value
+  };
+  const editando = sesionEditando;
+  boton.disabled = true;
+
+  try {
+    let inc = null;
+    if (editando.id) {
+      inc = (await api('PUT', '/trabajos/' + editando.id, datos)).incidencia;
+    } else {
+      inc = await api('POST', '/incidencias/' + editando.incidenciaId + '/notas', datos);
+    }
+    sesionCerrar();
+    if (editando.desdeHoras) {
+      await sesionesCargar();
+    } else if (inc) {
+      detalleTab = 'sesiones';
+      detallePintar(inc);
+      coreMensaje('mensajeDetalle', editando.id ? 'Sesión corregida.' : 'Sesión añadida.', 'ok');
+    }
+  } catch (err) {
+    coreMensaje('mensajeSesion', err.message, 'error');
+  }
+  boton.disabled = false;
 }
 
 function tabFicheros(inc) {

@@ -214,12 +214,13 @@ async function actualizar(id, cambios) {
   return obtener(actual.id);
 }
 
-async function anadirNota(id, { texto, minutos, autor }) {
+// fecha: cuándo acabó el trabajo, si no es ahora (una sesión apuntada con sus horas).
+async function anadirNota(id, { texto, minutos, autor, fecha }) {
   const actual = await obtener(id);
   const notaId = await enTransaccion(async con => {
     const [r] = await con.query(
-      'INSERT INTO ha_nota (incidencia_id, texto, minutos, autor, fecha) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())',
-      [actual.id, texto || '', Math.max(0, Math.round(Number(minutos) || 0)), autor || '']
+      'INSERT INTO ha_nota (incidencia_id, texto, minutos, autor, fecha) VALUES (?, ?, ?, ?, ' + (fecha ? '?' : 'UTC_TIMESTAMP()') + ')',
+      [actual.id, texto || '', Math.max(0, Math.round(Number(minutos) || 0)), autor || ''].concat(fecha ? [fecha] : [])
     );
     await tocar(con, actual.id);
     return r.insertId;
@@ -251,5 +252,5 @@ async function adjunto(id, adjuntoId) {
 
 module.exports = {
   ErrorIncidencia, ESTADOS, PRIORIDADES, CERRADAS, bloquear,
-  listar, obtener, crear, actualizar, anadirNota, adjuntar, adjunto
+  listar, obtener, crear, actualizar, anadirNota, adjuntar, adjunto, enTransaccion, anotar, tocar
 };
