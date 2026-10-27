@@ -639,8 +639,33 @@ function sesionAbrir(id, lista) {
   if (!t) return;
   sesionEditando = { id: t.id, desdeHoras: Boolean(lista) };
   document.getElementById('dialogoSesionTitulo').textContent = 'Corregir sesión';
-  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos.';
+  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos. Deja «Horas a cobrar» vacío para que las calcule Odin.';
   sesionDialogo(t.inicio, t.fin, t.detalle);
+  // Si se le pusieron horas a mano, se muestran; si no, queda en automático.
+  document.getElementById('sesHoras').value = t.horasManual != null ? String(Number(t.horasManual)) : '';
+  document.getElementById('sesHoras').closest('.field').classList.remove('hidden');
+  sesionDuracionPintar();
+}
+
+// Las que calcula Odin solo, igual que src/facturacion.js (horasFacturables).
+let sesionCfg = null;
+function sesionHorasAuto(inicio, fin) {
+  const cfg = sesionCfg || {};
+  const minimas = Number(cfg.HORAS_MINIMAS || 1);
+  const a = new Date(inicio).getTime();
+  const b = new Date(fin).getTime();
+  if (String(cfg.COBRO_POR || 'FRANJAS').toUpperCase() !== 'FRANJAS') return Math.max(minimas, Math.ceil(Math.round((b - a) / 60000) / 60));
+  const primera = Math.floor(a / 3600000);
+  const ultima = Math.floor((b - 1) / 3600000);
+  const desde = Number(cfg.HORARIO_DESDE);
+  const hasta = Number(cfg.HORARIO_HASTA);
+  const f = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hourCycle: 'h23' });
+  let fuera = false;
+  for (let h = primera; h <= ultima && hasta > desde && !fuera; h++) {
+    const hora = Number(f.format(new Date(h * 3600000)));
+    fuera = hora < desde || hora >= hasta;
+  }
+  return Math.max(minimas, (ultima - primera + 1) + (fuera ? Math.max(0, Number(cfg.RECARGO_HORAS) || 0) : 0));
 }
 
 function sesionNueva() {
@@ -649,6 +674,8 @@ function sesionNueva() {
   document.getElementById('dialogoSesionAyuda').textContent = 'Para el tiempo que trabajaste sin cronómetro. Se guarda también como nota.';
   const ahora = new Date();
   sesionDialogo(new Date(ahora.getTime() - 3600000).toISOString(), ahora.toISOString(), '');
+  document.getElementById('sesHoras').value = '';
+  document.getElementById('sesHoras').closest('.field').classList.add('hidden');
 }
 
 function sesionDialogo(inicio, fin, texto) {
@@ -657,6 +684,7 @@ function sesionDialogo(inicio, fin, texto) {
   document.getElementById('sesTexto').value = texto || '';
   coreMensaje('mensajeSesion', '');
   sesionDuracionPintar();
+  if (!sesionCfg) api('GET', '/config').then(function(c) { sesionCfg = c; sesionDuracionPintar(); }).catch(function() {});
   document.getElementById('dialogoSesion').classList.remove('hidden');
   document.getElementById('sesInicio').focus();
 }
@@ -665,7 +693,10 @@ function sesionDuracionPintar() {
   const a = deCampoFecha(document.getElementById('sesInicio').value);
   const b = deCampoFecha(document.getElementById('sesFin').value);
   const minutos = a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : 0;
-  document.getElementById('sesDuracion').textContent = minutos > 0 ? 'Duración: ' + fmtDuracion(minutos) : '';
+  const manual = document.getElementById('sesHoras').value;
+  document.getElementById('sesDuracion').textContent = minutos > 0
+    ? 'Duración: ' + fmtDuracion(minutos) + '. Se cobran ' + (manual ? String(manual).replace('.', ',') + ' h (a mano)' : sesionHorasAuto(a, b) + ' h') + '.'
+    : '';
 }
 
 function sesionCerrar() {
@@ -681,6 +712,7 @@ async function sesionGuardar() {
     texto: document.getElementById('sesTexto').value
   };
   const editando = sesionEditando;
+  if (editando.id) datos.horas = document.getElementById('sesHoras').value;
   boton.disabled = true;
 
   try {

@@ -270,6 +270,17 @@ no es el bueno:
 - **Corregir** (pestaña Sesiones de la incidencia, o «Corregir horas» en Horas): se cambian el inicio,
   el fin y lo que se hizo. El tiempo, las horas facturables, el importe (con la tarifa que ya tenía),
   el día y la nota de la incidencia se recalculan solos, y el historial apunta el cambio («Sesión»).
+  En **Horas a cobrar** se pueden poner a mano (de 0,25 en 0,25, hasta 48); vacío, las calcula
+  Odin. El cambio queda en el historial («Horas a cobrar») y se guarda en `ha_trabajo.horas_manual`.
+
+Cómo calcula Odin las horas (Ajustes, «Cómo se cuentan las horas»):
+
+- **Por franjas de reloj** (lo normal): cada franja de reloj que toca la sesión es una hora, y si
+  alguna cae fuera del horario normal (de 8 a 17, hora de España) se suma 1 h de recargo.
+  10:00–10:20 son 1 h, 09:50–10:10 son 2, 23:50–00:10 son 3 y 00:59–03:00 son 4.
+- **Por hora empezada**: 1 h mínimo y luego por hora empezada, como el gestor antiguo.
+
+Vale para las sesiones nuevas y las que se corrigen; las ya guardadas no cambian solas.
 - **Añadir sesión con horas**: apunta una sesión con su inicio y su fin, por ejemplo la mañana que
   se trabajó sin cronómetro. Se guarda también como nota.
 
