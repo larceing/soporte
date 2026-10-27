@@ -277,6 +277,15 @@ Una sesión dura de 1 minuto a 24 horas, no acaba en el futuro y cuenta en el d�
 Solo se corrige la propia, y no si ya está cobrada, facturada o en un pedido de Sindri. Lo pendiente
 se pone al día en Sindri unos segundos después. Pruebas: `node portal/tests/sesiones.js`.
 
+## Marcar como cobrado lo que se cobró fuera
+
+Si algo se cobró por otro lado (por ejemplo, con el gestor antiguo después del traspaso), en Horas se
+eligen las sesiones y se pulsa **«Marcar como cobradas»**, con la fecha del cobro y un concepto. Se
+crea un cobro (`ha_pago`) y esas sesiones pasan a «Cobradas»: ya no se mandan a Sindri y, si estaban
+pendientes allí, la sincronización las retira. Si alguna está en un pedido de Sindri, ese pedido se
+anula en Sindri (y su factura, con «Anular con rectificativa»). Un cobro marcado así se puede
+deshacer desde la misma sesión («Deshacer cobro»); los que vienen del gestor antiguo, no.
+
 ## Pruebas de casuística
 
 `portal/tests/casuistica.js` recorre los grafos de estados (incidencia, cronómetro y trabajo) y

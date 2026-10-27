@@ -348,8 +348,10 @@ async function trabajos(filtros, usuario) {
   const filas = await consulta(
     `SELECT t.id, t.codigo, t.incidencia_id AS incidenciaId, t.concepto, t.detalle, t.dia, t.minutos,
             t.horas, t.tarifa, t.importe, t.tipo, t.estado, t.inicio, t.fin, t.pago_id AS pagoId, t.sindri_pedido AS sindriPedido,
-            t.sindri_empresa, t.autor, c.nombre AS cliente
+            t.sindri_empresa, t.autor, c.nombre AS cliente, p.codigo AS pagoCodigo,
+            (p.observaciones LIKE '${MARCA_COBRO}%') AS cobroDeshacible
        FROM ha_trabajo t JOIN ha_cliente c ON c.id = t.cliente_id
+       LEFT JOIN ha_pago p ON p.id = t.pago_id
       ${donde.length ? 'WHERE ' + donde.join(' AND ') : ''}
       ORDER BY t.dia DESC, t.id DESC`,
     params
@@ -359,7 +361,7 @@ async function trabajos(filtros, usuario) {
   const v = usuario !== undefined ? await vista(usuario) : null;
   return filas
     .filter(f => !v || v.ve(f))
-    .map(({ sindri_empresa, ...f }) => ({ ...f, deOtro: Boolean(v && !v.esMio({ ...f, sindri_empresa })), situacion: situacionDe(f, ocupados.get(Number(f.id))) }));
+    .map(({ sindri_empresa, ...f }) => ({ ...f, cobroDeshacible: Boolean(Number(f.cobroDeshacible)), deOtro: Boolean(v && !v.esMio({ ...f, sindri_empresa })), situacion: situacionDe(f, ocupados.get(Number(f.id))) }));
 }
 
 // En qué punto de la facturación está un trabajo. Lo cobrado o facturado antes en el gestor y lo
@@ -388,6 +390,61 @@ async function trabajoEstado(id, estado, usuario) {
   await consulta('UPDATE ha_trabajo SET estado = ? WHERE id = ?', [estado, trabajo.id]);
 }
 
+// Cobros apuntados a mano en Horas: lo que se cobró fuera de Sindri (p. ej. con el gestor antiguo
+// y no llegó al traspaso). Llevan esta marca para poder deshacerlos; los cobros de antes, no.
+const MARCA_COBRO = 'Marcado como cobrado en Horas';
+
+async function cobroMarcar(datos, usuario) {
+  const ids = [...new Set((Array.isArray(datos.ids) ? datos.ids : []).map(Number).filter(n => n > 0))];
+  if (!ids.length) throw new ErrorUsuario('Elige qué sesiones se cobraron.');
+  if (ids.length > 500) throw new ErrorUsuario('Como máximo 500 de una vez.');
+  if (!esDia(datos.fecha)) throw new ErrorUsuario('Indica la fecha del cobro.');
+
+  const filas = await consulta(
+    `SELECT id, cliente_id, dia, importe, estado, pago_id, sindri_pedido, sindri_empresa, autor
+       FROM ha_trabajo WHERE id IN (?)`, [ids]);
+  if (filas.length !== ids.length) throw new ErrorUsuario('Alguna sesión ya no existe. Recarga la lista.', 404);
+  const v = usuario !== undefined ? await vista(usuario) : null;
+  if (v && filas.some(t => !v.esMio(t))) throw new ErrorUsuario('Hay sesiones que no son tuyas: las marca quien las apuntó.', 403);
+  if (filas.some(t => t.pago_id)) throw new ErrorUsuario('Alguna sesión ya está cobrada.', 409);
+  if (filas.some(t => t.estado === 'NO_COBRAR')) throw new ErrorUsuario('Alguna sesión está como «No se factura».', 409);
+  if (new Set(filas.map(t => t.cliente_id)).size > 1) throw new ErrorUsuario('Marca juntas solo sesiones del mismo cliente.');
+
+  const importe = redondear(filas.reduce((s, t) => s + Number(t.importe), 0));
+  const dias = filas.map(t => t.dia).sort();
+  const concepto = texto(datos.concepto, 255) || 'Cobro del ' + dias[0] + ' al ' + dias[dias.length - 1];
+  const observaciones = MARCA_COBRO + (usuario ? ' por ' + usuario : '') + '.' + (datos.nota ? ' ' + texto(datos.nota, 2000) : '');
+  const codigo = await codigoLibre('PAG');
+
+  const incidencias = require('./incidencias');
+  const pagoId = await incidencias.enTransaccion(async con => {
+    const [r] = await con.query(
+      `INSERT INTO ha_pago (codigo, cliente_id, fecha_pago, periodo_desde, periodo_hasta, importe, metodo, concepto, observaciones, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, UTC_TIMESTAMP())`,
+      [codigo, filas[0].cliente_id, datos.fecha, dias[0], dias[dias.length - 1], importe, concepto, observaciones]);
+    await con.query('UPDATE ha_trabajo SET pago_id = ? WHERE id IN (?) AND pago_id IS NULL', [r.insertId, ids]);
+    return r.insertId;
+  });
+  return { pagoId, codigo, sesiones: ids.length, importe, enSindri: filas.filter(t => t.sindri_pedido).length };
+}
+
+// Deshace un cobro apuntado en Horas: sus sesiones vuelven a donde estaban.
+async function cobroDeshacer(pagoId, usuario) {
+  const [p] = await consulta('SELECT id, codigo, observaciones FROM ha_pago WHERE id = ?', [Number(pagoId) || 0]);
+  if (!p) throw new ErrorUsuario('Cobro no encontrado.', 404);
+  if (!String(p.observaciones || '').startsWith(MARCA_COBRO)) throw new ErrorUsuario('Ese cobro viene del gestor antiguo y no se deshace desde aquí.', 409);
+  const filas = await consulta('SELECT id, sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE pago_id = ?', [p.id]);
+  const v = usuario !== undefined ? await vista(usuario) : null;
+  if (v && filas.some(t => !v.esMio(t))) throw new ErrorUsuario('Ese cobro tiene sesiones que no son tuyas.', 403);
+
+  const incidencias = require('./incidencias');
+  await incidencias.enTransaccion(async con => {
+    await con.query('UPDATE ha_trabajo SET pago_id = NULL WHERE pago_id = ?', [p.id]);
+    await con.query('DELETE FROM ha_pago WHERE id = ?', [p.id]);
+  });
+  return { codigo: p.codigo, sesiones: filas.length };
+}
+
 function datosDe(doc) {
   try {
     return JSON.parse(doc.datos_json || '{}');
@@ -412,6 +469,7 @@ async function trabajosOcupados() {
 module.exports = {
   config, configGuardar,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
+  cobroMarcar, cobroDeshacer,
   trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, trabajoEstado, trabajosOcupados,
   grupoDe, vista, permisos, permisoGuardar, tarifaVer, tarifaGuardar
 };

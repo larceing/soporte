@@ -198,6 +198,7 @@
             <button type="button" class="chip" data-ses="PENDIENTE" onclick="sesionesFiltrar('PENDIENTE')">Pendientes</button>
             <button type="button" class="chip" data-ses="SINDRI" onclick="sesionesFiltrar('SINDRI')">En pedido de Sindri</button>
             <button type="button" class="chip" data-ses="NO_COBRAR" onclick="sesionesFiltrar('NO_COBRAR')">No se facturan</button>
+            <button type="button" class="chip" data-ses="COBRADO" onclick="sesionesFiltrar('COBRADO')">Cobradas</button>
           </div>
 
           <div class="panel panel-filtros">
@@ -522,6 +523,26 @@
       <div class="actions">
         <button type="button" class="btn btn-secondary" onclick="sesionCerrar()">Cancelar</button>
         <button type="button" id="sesionBoton" class="btn btn-primary" onclick="sesionGuardar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dialogoCobro" class="dialog hidden">
+    <div class="dialog-box" role="dialog" aria-labelledby="dialogoCobroTitulo">
+      <h3 id="dialogoCobroTitulo">Marcar como cobradas</h3>
+      <p id="cobroAyuda"></p>
+
+      <div class="grid" style="margin-top:16px">
+        <div class="field"><label for="cobroFecha">Fecha del cobro</label><input id="cobroFecha" type="date"></div>
+        <div class="field"><label for="cobroConcepto">Concepto</label><input id="cobroConcepto" type="text" maxlength="255"></div>
+        <div class="field field-full"><label for="cobroNota">Nota (opcional)</label><textarea id="cobroNota"></textarea></div>
+      </div>
+
+      <div id="mensajeCobro" class="message hidden"></div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" onclick="cobroCerrar()">Cancelar</button>
+        <button type="button" id="cobroBoton" class="btn btn-primary" onclick="cobroGuardar()">Marcar como cobradas</button>
       </div>
     </div>
   </div>

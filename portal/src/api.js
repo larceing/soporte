@@ -494,6 +494,15 @@ router.put('/trabajos/:id', ruta(async (req, res) => {
     : hecho);
 }));
 
+// Apuntar como cobradas unas sesiones que se cobraron fuera de Sindri, y deshacerlo.
+router.post('/cobros', ruta(async (req, res) => {
+  res.status(201).json(await fact.cobroMarcar(req.body || {}, req.usuario.usuario));
+}));
+
+router.post('/cobros/:id/deshacer', ruta(async (req, res) => {
+  res.json(await fact.cobroDeshacer(req.params.id, req.usuario.usuario));
+}));
+
 router.post('/trabajos/:id/estado', ruta(async (req, res) => {
   await fact.trabajoEstado(req.params.id, req.body.estado, req.usuario.usuario);
   res.json({ ok: true });
