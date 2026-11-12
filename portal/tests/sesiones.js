@@ -15,6 +15,14 @@ async function consulta(sql, p = []) {
   if (/SELECT usuario FROM ha_sindri_persona/.test(sql)) return [];
   if (/SELECT dueno, que FROM ha_compartir/.test(sql)) return [];
   if (/FROM ha_documento/.test(sql)) return docs;
+  if (/FROM ha_trabajo\s+WHERE tipo = 'TIEMPO' AND estado <> 'NO_COBRAR'/.test(sql)) {
+    return trabajos.filter(t => t.tipo === 'TIEMPO' && t.estado !== 'NO_COBRAR' && t.cliente_id === p[0] &&
+      (t.autor || null) === p[1] && t.inicio && t.fin).map(t => ({ ...t }));
+  }
+  if (/^UPDATE ha_trabajo SET horas = \?, importe = \?/.test(sql)) {
+    Object.assign(trabajos.find(x => x.id === p[2]), { horas: p[0], importe: p[1] });
+    return [];
+  }
   if (/FROM ha_trabajo WHERE id = \?/.test(sql)) return trabajos.filter(t => t.id === p[0]).map(t => ({ ...t }));
   if (/^UPDATE ha_trabajo SET inicio/.test(sql)) {
     const t = trabajos.find(x => x.id === p[8]);
@@ -117,6 +125,54 @@ const fact = require('../src/facturacion');
   const n = await fact.trabajoEditar(7, { inicio: '2026-10-26T22:38:00Z', fin: '2026-10-26T23:08:00Z' }, 'luis');
   assert.deepStrictEqual([n.minutos, n.horas, n.importe], [30, 3, 45]);
   assert.strictEqual(t.horas_manual, null);
+
+  // Sesiones seguidas o que se pisan: cada franja una vez y el recargo una vez por jornada (la
+  // madrugada cuenta en la noche anterior). La noche del 26 al 27/10: 23:08-23:38, 23:35-00:08 y
+  // 00:12-00:23 (hora de España) eran 2 + 3 + 2 = 7 h; ahora 2 + 1 + 0 = 3 h.
+  const noche = [
+    { id: 1, inicio: '2026-10-26T22:08:00Z', fin: '2026-10-26T22:38:00Z' },
+    { id: 2, inicio: '2026-10-26T22:35:00Z', fin: '2026-10-26T23:08:00Z' },
+    { id: 3, inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z' },
+    { id: 4, inicio: '2026-10-27T08:00:00Z', fin: '2026-10-27T10:00:00Z' },   // 09:00-11:00 del 27: 2 h
+    { id: 5, inicio: '2026-10-29T16:52:00Z', fin: '2026-10-29T18:49:00Z' },   // 17:52-19:49: 3 + recargo
+    { id: 6, inicio: '2026-10-29T20:30:00Z', fin: '2026-10-29T21:43:00Z' }    // 21:30-22:43: misma jornada, sin recargo
+  ];
+  const r6 = fact.repartirFranjas(noche, cfg);
+  assert.deepStrictEqual([...r6.values()], [2, 1, 0, 2, 4, 2]);
+  // El orden de llegada no importa: se reparte por hora de inicio.
+  assert.deepStrictEqual([...fact.repartirFranjas([...noche].reverse(), cfg)].sort((a, b) => a[0] - b[0]).map(x => x[1]), [2, 1, 0, 2, 4, 2]);
+  // Una sola sesión da lo mismo que antes.
+  assert.strictEqual(fact.repartirFranjas([{ id: 9, inicio: '2026-10-26T22:50:00Z', fin: '2026-10-26T23:10:00Z' }], cfg).get(9), 3);
+  // Antes de las 8 cuenta en la noche anterior: 07:00-07:30 del 28 tras 23:00-23:30 del 27, un recargo.
+  assert.deepStrictEqual([...fact.repartirFranjas([
+    { id: 1, inicio: '2026-10-27T22:00:00Z', fin: '2026-10-27T22:30:00Z' },
+    { id: 2, inicio: '2026-10-28T06:00:00Z', fin: '2026-10-28T06:30:00Z' }
+  ], cfg).values()], [2, 1]);
+
+  // En la base: al corregir una sesión se reparten de nuevo las de esa persona con ese cliente. Las
+  // puestas a mano y las que están en Sindri no cambian, pero sus franjas cuentan.
+  trabajos.length = 0;
+  const ses = (id, i, f, extra = {}) => ({
+    id, tipo: 'TIEMPO', cliente_id: 1, autor: 'luis', estado: 'CERRADA', incidencia_id: null, nota_id: null,
+    detalle: '', minutos: 30, horas: 9, importe: 135, tarifa: 15, inicio: new Date(i), fin: new Date(f),
+    pago_id: null, sindri_pedido: null, sindri_empresa: null, horas_manual: null, ...extra
+  });
+  trabajos.push(ses(21, '2026-10-26T22:08:00Z', '2026-10-26T22:38:00Z'));
+  trabajos.push(ses(22, '2026-10-26T22:35:00Z', '2026-10-26T23:08:00Z'));
+  trabajos.push(ses(23, '2026-10-26T23:12:00Z', '2026-10-26T23:23:00Z'));
+  trabajos.push(ses(24, '2026-10-26T20:00:00Z', '2026-10-26T20:30:00Z', { cliente_id: 2 }));   // otro cliente
+  const e = await fact.trabajoEditar(23, { inicio: '2026-10-26T23:12:00Z', fin: '2026-10-26T23:23:00Z' }, 'luis');
+  assert.deepStrictEqual([e.horas, e.importe], [0, 0]);
+  assert.deepStrictEqual(trabajos.map(x => x.horas), [2, 1, 0, 9]);
+  assert.deepStrictEqual(trabajos.map(x => x.importe), [30, 15, 0, 135]);
+  // La primera ya está en Sindri con 5 h: no cambia, y la segunda sigue sin cobrar la franja de las 23.
+  trabajos[0].sindri_pedido = 'PED-1'; trabajos[0].horas = 5;
+  trabajos[1].horas = 9;
+  assert.strictEqual(await fact.recalcularHoras('luis', 1), 1);
+  assert.deepStrictEqual(trabajos.map(x => x.horas), [5, 1, 0, 9]);
+  config.set('COBRO_POR', 'HORAS');
+  assert.strictEqual(await fact.recalcularHoras('luis', 1), 0);
+  config.set('COBRO_POR', 'FRANJAS');
 
   // tramoValido redondea al minuto.
   assert.strictEqual(fact.tramoValido('2026-10-27T08:00:30Z', '2026-10-27T09:15:10Z').minutos, 75);

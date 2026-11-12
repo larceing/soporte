@@ -280,7 +280,15 @@ Cómo calcula Odin las horas (Ajustes, «Cómo se cuentan las horas»):
   10:00–10:20 son 1 h, 09:50–10:10 son 2, 23:50–00:10 son 3 y 00:59–03:00 son 4.
 - **Por hora empezada**: 1 h mínimo y luego por hora empezada, como el gestor antiguo.
 
-Vale para las sesiones nuevas y las que se corrigen; las ya guardadas no cambian solas.
+- **Sesiones seguidas o que se pisan** (por franjas): cada franja de reloj se cobra una sola vez y el
+  recargo, una vez por jornada, entre todas las sesiones de la misma persona con el mismo cliente. La
+  jornada va de las 8 a las 8 del día siguiente: la madrugada cuenta en la noche anterior. Se reparte
+  por hora de inicio y a la sesión a la que no le queda nada nuevo le salen 0 h (no se manda a
+  Sindri). Ejemplo: 23:08–23:38, 23:35–00:08 y 00:12–00:23 son 2 + 1 + 0 = 3 h, no 7.
+
+Las sesiones pendientes se vuelven a repartir al apuntar, corregir o marcar «No facturar» una sesión,
+al cambiar cómo se cuentan las horas y al arrancar Odin. Las cobradas, las que están en un pedido de
+Sindri o facturadas y las que llevan horas puestas a mano no cambian, pero sus franjas cuentan.
 - **Añadir sesión con horas**: apunta una sesión con su inicio y su fin, por ejemplo la mañana que
   se trabajó sin cronómetro. Se guarda también como nota.
 
