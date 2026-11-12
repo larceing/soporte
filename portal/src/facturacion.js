@@ -38,6 +38,7 @@ async function configGuardar(datos) {
       [clave, texto(datos[clave], 2000)]
     );
   }
+  await recalcularTodas();
   return config();
 }
 
@@ -128,6 +129,78 @@ function horasPorFranjas(inicio, fin, cfg) {
     fuera = hora < desde || hora >= hasta;
   }
   return (ultima - primera + 1) + (fuera ? Math.max(0, Number(cfg.RECARGO_HORAS) || 0) : 0);
+}
+
+// Sesiones seguidas o que se pisan (FRANJAS): cada franja de reloj se cobra una sola vez y el
+// recargo, una vez por jornada. La jornada va de HORARIO_DESDE a HORARIO_DESDE del día siguiente:
+// la madrugada cuenta en la noche anterior. Se reparte por orden de inicio: la primera sesión que
+// toca una franja la cobra y las siguientes no; si a una no le queda nada nuevo, va a 0 h.
+// sesiones: [{ id, inicio, fin }]. Devuelve Map id -> horas.
+function repartirFranjas(sesiones, cfg) {
+  const minimas = Number(cfg.HORAS_MINIMAS || 1);
+  const recargo = Math.max(0, Number(cfg.RECARGO_HORAS) || 0);
+  const desde = Number(cfg.HORARIO_DESDE);
+  const hasta = Number(cfg.HORARIO_HASTA);
+  const conHorario = Number.isFinite(desde) && Number.isFinite(hasta) && hasta > desde;
+  const cobradas = new Set();
+  const conRecargo = new Set();
+  const horas = new Map();
+  const orden = sesiones.filter(s => s.inicio && s.fin)
+    .sort((a, b) => new Date(a.inicio) - new Date(b.inicio) || Number(a.id) - Number(b.id));
+  for (const s of orden) {
+    const primera = Math.floor(new Date(s.inicio).getTime() / HORA_MS);
+    const ultima = Math.floor((new Date(s.fin).getTime() - 1) / HORA_MS);
+    let nuevas = 0;
+    const jornadas = new Set();
+    for (let h = primera; h <= ultima; h++) {
+      if (!cobradas.has(h)) { nuevas++; cobradas.add(h); }
+      if (!conHorario) continue;
+      const hora = horaLocal(new Date(h * HORA_MS));
+      if (hora >= desde && hora < hasta) continue;
+      const jornada = diaLocal(new Date((h - desde) * HORA_MS));
+      if (!conRecargo.has(jornada)) jornadas.add(jornada);
+    }
+    jornadas.forEach(j => conRecargo.add(j));
+    const auto = nuevas + jornadas.size * recargo;
+    horas.set(s.id, auto > 0 ? Math.max(minimas, auto) : 0);
+  }
+  return horas;
+}
+
+// Vuelve a repartir las horas de las sesiones de una persona con un cliente. Solo cambian las que
+// están pendientes y sin horas puestas a mano; las cobradas, en Sindri, facturadas o a mano siguen
+// igual, pero sus franjas cuentan como ya cobradas. Las de «No se factura» no cuentan.
+async function recalcularHoras(autor, clienteId) {
+  const cfg = await config();
+  if (String(cfg.COBRO_POR || '').toUpperCase() !== 'FRANJAS') return 0;
+  const filas = await consulta(
+    `SELECT id, inicio, fin, horas, horas_manual, tarifa, pago_id, sindri_pedido FROM ha_trabajo
+      WHERE tipo = 'TIEMPO' AND estado <> 'NO_COBRAR' AND cliente_id = ? AND autor <=> ?
+        AND inicio IS NOT NULL AND fin IS NOT NULL`, [Number(clienteId), autor || null]);
+  if (!filas.length) return 0;
+  const reparto = repartirFranjas(filas, cfg);
+  const ocupados = await trabajosOcupados();
+  let cambiadas = 0;
+  for (const t of filas) {
+    if (t.pago_id || t.sindri_pedido || t.horas_manual != null || ocupados.has(Number(t.id))) continue;
+    const horas = reparto.get(t.id);
+    if (horas === undefined || Number(t.horas) === horas) continue;
+    await consulta(
+      'UPDATE ha_trabajo SET horas = ?, importe = ? WHERE id = ? AND pago_id IS NULL AND sindri_pedido IS NULL',
+      [horas, redondear(horas * Number(t.tarifa)), t.id]);
+    cambiadas++;
+  }
+  return cambiadas;
+}
+
+// Todas las pendientes, al arrancar y al cambiar cómo se cuentan las horas.
+async function recalcularTodas() {
+  const grupos = await consulta(
+    `SELECT DISTINCT autor, cliente_id FROM ha_trabajo
+      WHERE tipo = 'TIEMPO' AND pago_id IS NULL AND sindri_pedido IS NULL`);
+  let cambiadas = 0;
+  for (const g of grupos) cambiadas += await recalcularHoras(g.autor, g.cliente_id);
+  return cambiadas;
 }
 
 function horaLocal(fecha) {
@@ -245,6 +318,7 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
       texto(detalle, 20000), diaLocal(desde), minutos, horas, tarifa, redondear(horas * tarifa), autor || null,
       desde, hasta]
   );
+  await recalcularHoras(autor, cliente.id);
 }
 
 // Corrige una sesión de trabajo: su hora de inicio y de fin y lo que se hizo. Se recalculan el
@@ -263,7 +337,7 @@ function horasACobrar(valor, auto) {
 
 async function trabajoEditar(id, datos, usuario) {
   const [t] = await consulta(
-    `SELECT id, tipo, incidencia_id, nota_id, detalle, minutos, horas, tarifa, inicio, fin, pago_id,
+    `SELECT id, tipo, cliente_id, incidencia_id, nota_id, detalle, minutos, horas, tarifa, inicio, fin, pago_id,
             sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?`, [Number(id) || 0]);
   if (!t) throw new ErrorUsuario('Sesión no encontrada.', 404);
   if (t.tipo !== 'TIEMPO') throw new ErrorUsuario('Solo se cambian las horas de las sesiones de trabajo.', 409);
@@ -297,7 +371,11 @@ async function trabajoEditar(id, datos, usuario) {
       await incidencias.tocar(con, t.incidencia_id);
     }
   });
-  return { id: t.id, incidenciaId: t.incidencia_id, minutos, horas, importe };
+  // Las de esa persona con ese cliente se reparten otra vez: esta y las que se pisan con ella.
+  await recalcularHoras(t.autor, t.cliente_id);
+  const [final] = await consulta('SELECT horas, importe FROM ha_trabajo WHERE id = ?', [t.id]);
+  const f = final || { horas, importe };
+  return { id: t.id, incidenciaId: t.incidencia_id, minutos, horas: Number(f.horas), importe: Number(f.importe) };
 }
 
 async function gastoCrear(datos, autor) {
@@ -489,7 +567,7 @@ function situacionDe(trabajo, doc) {
 async function trabajoEstado(id, estado, usuario) {
   if (['CERRADA', 'NO_COBRAR'].indexOf(estado) === -1) throw new ErrorUsuario('Estado no válido.');
 
-  const [trabajo] = await consulta('SELECT id, pago_id, sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
+  const [trabajo] = await consulta('SELECT id, tipo, cliente_id, pago_id, sindri_pedido, sindri_empresa, autor FROM ha_trabajo WHERE id = ?', [Number(id) || 0]);
   if (!trabajo) throw new ErrorUsuario('Trabajo no encontrado.', 404);
   // Lo de otro, aunque te deje verlo, solo lo cambia él.
   if (usuario !== undefined && !(await vista(usuario)).esMio(trabajo)) throw new ErrorUsuario('Ese trabajo no es tuyo.', 403);
@@ -500,6 +578,8 @@ async function trabajoEstado(id, estado, usuario) {
   if (doc) throw new ErrorUsuario('No se puede cambiar: el trabajo está en ' + doc.codigo + '.', 409);
 
   await consulta('UPDATE ha_trabajo SET estado = ? WHERE id = ?', [estado, trabajo.id]);
+  // Una sesión que deja de facturarse libera sus franjas, y al volver las recupera.
+  if (trabajo.tipo === 'TIEMPO') await recalcularHoras(trabajo.autor, trabajo.cliente_id);
 }
 
 // Cobros apuntados a mano en Horas: lo que se cobró fuera de Sindri (p. ej. con el gestor antiguo
@@ -579,7 +659,7 @@ async function trabajosOcupados() {
 }
 
 module.exports = {
-  config, configGuardar, horasFacturables,
+  config, configGuardar, horasFacturables, repartirFranjas, recalcularHoras, recalcularTodas,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   cobroMarcar, cobroDeshacer,
   trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, resumen, trabajoEstado, trabajosOcupados,

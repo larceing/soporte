@@ -639,7 +639,7 @@ function sesionAbrir(id, lista) {
   if (!t) return;
   sesionEditando = { id: t.id, desdeHoras: Boolean(lista) };
   document.getElementById('dialogoSesionTitulo').textContent = 'Corregir sesión';
-  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos. Deja «Horas a cobrar» vacío para que las calcule Odin.';
+  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos. Si se pisa con otra sesión de la misma jornada, las franjas que ya cobra la otra no se cobran dos veces. Deja «Horas a cobrar» vacío para que las calcule Odin.';
   sesionDialogo(t.inicio, t.fin, t.detalle);
   // Si se le pusieron horas a mano, se muestran; si no, queda en automático.
   document.getElementById('sesHoras').value = t.horasManual != null ? String(Number(t.horasManual)) : '';
