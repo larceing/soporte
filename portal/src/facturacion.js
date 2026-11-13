@@ -9,12 +9,6 @@ const CONFIG_DEFECTO = {
   TARIFA_HORA: '15',
   MONEDA: '€',
   HORAS_MINIMAS: '1',
-  // Cómo se cuentan las horas de una sesión. FRANJAS: cada franja de reloj que toca (09:50-10:10
-  // son 2) y, si algo cae fuera del horario, RECARGO_HORAS más. HORAS: por hora empezada.
-  COBRO_POR: 'FRANJAS',
-  HORARIO_DESDE: '8',
-  HORARIO_HASTA: '17',
-  RECARGO_HORAS: '1',
   // El IVA y la retención con que se dan de alta los servicios y los clientes en Sindri.
   IVA: '0',
   IRPF: '0'
@@ -104,87 +98,33 @@ async function clienteGuardar(datos, usuario) {
 
 /* Trabajos */
 
-const HORA_MS = 3600000;
-
-function horasFacturables(minutos, cfg, inicio, fin) {
-  const minimas = Number(cfg.HORAS_MINIMAS || 1);
-  if (String(cfg.COBRO_POR || '').toUpperCase() === 'FRANJAS' && inicio && fin) {
-    return Math.max(minimas, horasPorFranjas(new Date(inicio), new Date(fin), cfg));
-  }
-  return Math.max(minimas, Math.ceil(Number(minutos || 0) / 60));
+// Cada sesión se cobra por hora empezada, contada por minutos reales: de 1 a 59 min es 1 h, de 60
+// a 119 min son 2 h, de 120 a 179 min son 3 h… (4 h 25 min son 5 h). Con el mínimo de Ajustes.
+function horasPorMinutos(minutos) {
+  const m = Math.round(Number(minutos) || 0);
+  return m > 0 ? Math.floor(m / 60) + 1 : 0;
 }
 
-// Franjas de reloj que toca [inicio, fin) y el recargo si alguna está fuera del horario (hora de
-// España). Los cambios de hora de España son de horas enteras: las franjas en UTC coinciden.
-function horasPorFranjas(inicio, fin, cfg) {
-  const primera = Math.floor(inicio.getTime() / HORA_MS);
-  const ultima = Math.floor((fin.getTime() - 1) / HORA_MS);
-  if (!(ultima >= primera)) return 0;
-  const desde = Number(cfg.HORARIO_DESDE);
-  const hasta = Number(cfg.HORARIO_HASTA);
-  const conHorario = Number.isFinite(desde) && Number.isFinite(hasta) && hasta > desde;
-  let fuera = false;
-  for (let h = primera; h <= ultima && conHorario && !fuera; h++) {
-    const hora = horaLocal(new Date(h * HORA_MS));
-    fuera = hora < desde || hora >= hasta;
-  }
-  return (ultima - primera + 1) + (fuera ? Math.max(0, Number(cfg.RECARGO_HORAS) || 0) : 0);
+function horasFacturables(minutos, cfg) {
+  return Math.max(Number(cfg.HORAS_MINIMAS || 1), horasPorMinutos(minutos));
 }
 
-// Sesiones seguidas o que se pisan (FRANJAS): cada franja de reloj se cobra una sola vez y el
-// recargo, una vez por jornada. La jornada va de HORARIO_DESDE a HORARIO_DESDE del día siguiente:
-// la madrugada cuenta en la noche anterior. Se reparte por orden de inicio: la primera sesión que
-// toca una franja la cobra y las siguientes no; si a una no le queda nada nuevo, va a 0 h.
-// sesiones: [{ id, inicio, fin }]. Devuelve Map id -> horas.
-function repartirFranjas(sesiones, cfg) {
-  const minimas = Number(cfg.HORAS_MINIMAS || 1);
-  const recargo = Math.max(0, Number(cfg.RECARGO_HORAS) || 0);
-  const desde = Number(cfg.HORARIO_DESDE);
-  const hasta = Number(cfg.HORARIO_HASTA);
-  const conHorario = Number.isFinite(desde) && Number.isFinite(hasta) && hasta > desde;
-  const cobradas = new Set();
-  const conRecargo = new Set();
-  const horas = new Map();
-  const orden = sesiones.filter(s => s.inicio && s.fin)
-    .sort((a, b) => new Date(a.inicio) - new Date(b.inicio) || Number(a.id) - Number(b.id));
-  for (const s of orden) {
-    const primera = Math.floor(new Date(s.inicio).getTime() / HORA_MS);
-    const ultima = Math.floor((new Date(s.fin).getTime() - 1) / HORA_MS);
-    let nuevas = 0;
-    const jornadas = new Set();
-    for (let h = primera; h <= ultima; h++) {
-      if (!cobradas.has(h)) { nuevas++; cobradas.add(h); }
-      if (!conHorario) continue;
-      const hora = horaLocal(new Date(h * HORA_MS));
-      if (hora >= desde && hora < hasta) continue;
-      const jornada = diaLocal(new Date((h - desde) * HORA_MS));
-      if (!conRecargo.has(jornada)) jornadas.add(jornada);
-    }
-    jornadas.forEach(j => conRecargo.add(j));
-    const auto = nuevas + jornadas.size * recargo;
-    horas.set(s.id, auto > 0 ? Math.max(minimas, auto) : 0);
-  }
-  return horas;
-}
-
-// Vuelve a repartir las horas de las sesiones de una persona con un cliente. Solo cambian las que
+// Vuelve a calcular las horas de las sesiones de una persona con un cliente. Solo cambian las que
 // están pendientes y sin horas puestas a mano; las cobradas, en Sindri, facturadas o a mano siguen
-// igual, pero sus franjas cuentan como ya cobradas. Las de «No se factura» no cuentan.
+// igual.
 async function recalcularHoras(autor, clienteId) {
   const cfg = await config();
-  if (String(cfg.COBRO_POR || '').toUpperCase() !== 'FRANJAS') return 0;
   const filas = await consulta(
-    `SELECT id, inicio, fin, horas, horas_manual, tarifa, pago_id, sindri_pedido FROM ha_trabajo
-      WHERE tipo = 'TIEMPO' AND estado <> 'NO_COBRAR' AND cliente_id = ? AND autor <=> ?
-        AND inicio IS NOT NULL AND fin IS NOT NULL`, [Number(clienteId), autor || null]);
+    `SELECT id, minutos, horas, horas_manual, tarifa, pago_id, sindri_pedido FROM ha_trabajo
+      WHERE tipo = 'TIEMPO' AND estado <> 'NO_COBRAR' AND cliente_id = ? AND autor <=> ?`,
+    [Number(clienteId), autor || null]);
   if (!filas.length) return 0;
-  const reparto = repartirFranjas(filas, cfg);
   const ocupados = await trabajosOcupados();
   let cambiadas = 0;
   for (const t of filas) {
     if (t.pago_id || t.sindri_pedido || t.horas_manual != null || ocupados.has(Number(t.id))) continue;
-    const horas = reparto.get(t.id);
-    if (horas === undefined || Number(t.horas) === horas) continue;
+    const horas = horasFacturables(t.minutos, cfg);
+    if (Number(t.horas) === horas) continue;
     await consulta(
       'UPDATE ha_trabajo SET horas = ?, importe = ? WHERE id = ? AND pago_id IS NULL AND sindri_pedido IS NULL',
       [horas, redondear(horas * Number(t.tarifa)), t.id]);
@@ -193,7 +133,7 @@ async function recalcularHoras(autor, clienteId) {
   return cambiadas;
 }
 
-// Todas las pendientes, al arrancar y al cambiar cómo se cuentan las horas.
+// Todas las pendientes, al arrancar y al guardar Ajustes.
 async function recalcularTodas() {
   const grupos = await consulta(
     `SELECT DISTINCT autor, cliente_id FROM ha_trabajo
@@ -201,10 +141,6 @@ async function recalcularTodas() {
   let cambiadas = 0;
   for (const g of grupos) cambiadas += await recalcularHoras(g.autor, g.cliente_id);
   return cambiadas;
-}
-
-function horaLocal(fecha) {
-  return Number(new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hourCycle: 'h23' }).format(fecha));
 }
 
 function tarifaDe(cliente, cfg) {
@@ -295,8 +231,8 @@ function tramoTexto(inicio, fin, minutos) {
   return (inicio ? f.format(new Date(inicio)) + ' – ' : '') + (fin ? f.format(new Date(fin)) : '') + ' (' + duracion + ')';
 }
 
-// Sesión de trabajo: cada una se redondea a horas enteras con el mínimo
-// configurado, como hacía el gestor antiguo. inicio y fin: cuándo fue; si no
+// Sesión de trabajo: se cobra por hora empezada (horasFacturables), con el mínimo
+// configurado. inicio y fin: cuándo fue; si no
 // vienen, acabó ahora y duró sus minutos. Cuenta en el día en que empezó.
 async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minutos, inicio, fin, autor }) {
   const cfg = await config();
@@ -307,7 +243,7 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
   const cliente = delaIncidencia || await clientePorDefecto(autor || '');
   const hasta = fin ? new Date(fin) : new Date();
   const desde = inicio ? new Date(inicio) : new Date(hasta.getTime() - Number(minutos || 0) * 60000);
-  const horas = horasFacturables(minutos, cfg, desde, hasta);
+  const horas = horasFacturables(minutos, cfg);
   const tarifa = await tarifaPara(autor, cliente, cfg);
 
   await consulta(
@@ -318,7 +254,6 @@ async function trabajoDeTiempo({ incidenciaId, notaId, concepto, detalle, minuto
       texto(detalle, 20000), diaLocal(desde), minutos, horas, tarifa, redondear(horas * tarifa), autor || null,
       desde, hasta]
   );
-  await recalcularHoras(autor, cliente.id);
 }
 
 // Corrige una sesión de trabajo: su hora de inicio y de fin y lo que se hizo. Se recalculan el
@@ -349,7 +284,7 @@ async function trabajoEditar(id, datos, usuario) {
 
   const { inicio, fin, minutos } = tramoValido(datos.inicio, datos.fin);
   const detalle = datos.texto === undefined ? t.detalle : texto(datos.texto, 20000);
-  const auto = horasFacturables(minutos, await config(), inicio, fin);
+  const auto = horasFacturables(minutos, await config());
   const horas = horasACobrar(datos.horas, auto);
   const manual = horas !== auto || (datos.horas !== undefined && String(datos.horas).trim() !== '') ? horas : null;
   const importe = redondear(horas * Number(t.tarifa));
@@ -371,8 +306,7 @@ async function trabajoEditar(id, datos, usuario) {
       await incidencias.tocar(con, t.incidencia_id);
     }
   });
-  // Las de esa persona con ese cliente se reparten otra vez: esta y las que se pisan con ella.
-  await recalcularHoras(t.autor, t.cliente_id);
+
   const [final] = await consulta('SELECT horas, importe FROM ha_trabajo WHERE id = ?', [t.id]);
   const f = final || { horas, importe };
   return { id: t.id, incidenciaId: t.incidencia_id, minutos, horas: Number(f.horas), importe: Number(f.importe) };
@@ -578,8 +512,6 @@ async function trabajoEstado(id, estado, usuario) {
   if (doc) throw new ErrorUsuario('No se puede cambiar: el trabajo está en ' + doc.codigo + '.', 409);
 
   await consulta('UPDATE ha_trabajo SET estado = ? WHERE id = ?', [estado, trabajo.id]);
-  // Una sesión que deja de facturarse libera sus franjas, y al volver las recupera.
-  if (trabajo.tipo === 'TIEMPO') await recalcularHoras(trabajo.autor, trabajo.cliente_id);
 }
 
 // Cobros apuntados a mano en Horas: lo que se cobró fuera de Sindri (p. ej. con el gestor antiguo
@@ -659,7 +591,7 @@ async function trabajosOcupados() {
 }
 
 module.exports = {
-  config, configGuardar, horasFacturables, repartirFranjas, recalcularHoras, recalcularTodas,
+  config, configGuardar, horasFacturables, horasPorMinutos, recalcularHoras, recalcularTodas,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   cobroMarcar, cobroDeshacer,
   trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, resumen, trabajoEstado, trabajosOcupados,
