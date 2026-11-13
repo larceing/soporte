@@ -32,6 +32,21 @@ const TABLAS = [
      INDEX idx_ha_sesion_usuario (usuario_id)
    )`,
   // Un cronómetro en marcha por usuario, como la hoja "Estado" del gestor antiguo.
+  // Llaves de agente (oda_…): un programa (p. ej. un hilo de Claude) usa la API como la persona que
+  // la creó, sin contraseña. Solo queda la huella (sha256). Ver src/agente.js.
+  `CREATE TABLE IF NOT EXISTS ha_llave_agente (
+     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+     usuario_id INT UNSIGNED NOT NULL,
+     nombre VARCHAR(40) NOT NULL,
+     nivel VARCHAR(10) NOT NULL,
+     token_hash CHAR(64) NOT NULL UNIQUE,
+     final CHAR(4) NOT NULL,
+     creada_en DATETIME NOT NULL,
+     caduca_en DATETIME NULL,
+     usada_en DATETIME NULL,
+     revocada_en DATETIME NULL,
+     INDEX idx_ha_llave_agente_usuario (usuario_id)
+   )`,
   `CREATE TABLE IF NOT EXISTS ha_cronometro (
      usuario_id INT UNSIGNED PRIMARY KEY,
      incidencia_id INT UNSIGNED NOT NULL,
