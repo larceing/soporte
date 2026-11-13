@@ -119,18 +119,9 @@ const fact = require('../src/facturacion');
   assert.deepStrictEqual([n.minutos, n.horas, n.importe], [30, 1, 15]);
   assert.strictEqual(t.horas_manual, null);
 
-  // Al recalcular, cada sesión pendiente va por sus minutos. Las de Sindri, cobradas o a mano no cambian.
-  trabajos.length = 0;
-  const ses = (id, minutos, extra = {}) => ({
-    id, tipo: 'TIEMPO', cliente_id: 1, autor: 'luis', estado: 'CERRADA', minutos, horas: 9, importe: 135,
-    tarifa: 15, pago_id: null, sindri_pedido: null, horas_manual: null, ...extra
-  });
-  trabajos.push(ses(21, 265), ses(22, 30), ses(23, 60), ses(24, 30, { sindri_pedido: 'PED-1' }),
-    ses(25, 30, { horas_manual: 9 }), ses(26, 30, { pago_id: 4 }), ses(27, 30, { cliente_id: 2 }));
-  assert.strictEqual(await fact.recalcularHoras('luis', 1), 3);
-  assert.deepStrictEqual(trabajos.map(x => x.horas), [5, 1, 2, 9, 9, 9, 9]);
-  assert.deepStrictEqual(trabajos.map(x => x.importe), [75, 15, 30, 135, 135, 135, 135]);
-  assert.strictEqual(await fact.recalcularHoras('luis', 1), 0);
+  // Las que ya estaban apuntadas no se recalculan en bloque (Luis, 13/11): no hay recálculo.
+  assert.strictEqual(fact.recalcularHoras, undefined);
+  assert.strictEqual(fact.recalcularTodas, undefined);
 
   // tramoValido redondea al minuto.
   assert.strictEqual(fact.tramoValido('2026-10-27T08:00:30Z', '2026-10-27T09:15:10Z').minutos, 75);

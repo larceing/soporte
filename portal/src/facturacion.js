@@ -32,7 +32,6 @@ async function configGuardar(datos) {
       [clave, texto(datos[clave], 2000)]
     );
   }
-  await recalcularTodas();
   return config();
 }
 
@@ -100,6 +99,8 @@ async function clienteGuardar(datos, usuario) {
 
 // Cada sesión se cobra por hora empezada, contada por minutos reales: de 1 a 59 min es 1 h, de 60
 // a 119 min son 2 h, de 120 a 179 min son 3 h… (4 h 25 min son 5 h). Con el mínimo de Ajustes.
+// Vale desde el 13/11/2026 para las sesiones nuevas y las que se corrigen: las que ya estaban
+// apuntadas conservan sus horas (lo decidió Luis), así que no se recalcula nada en bloque.
 function horasPorMinutos(minutos) {
   const m = Math.round(Number(minutos) || 0);
   return m > 0 ? Math.floor(m / 60) + 1 : 0;
@@ -107,40 +108,6 @@ function horasPorMinutos(minutos) {
 
 function horasFacturables(minutos, cfg) {
   return Math.max(Number(cfg.HORAS_MINIMAS || 1), horasPorMinutos(minutos));
-}
-
-// Vuelve a calcular las horas de las sesiones de una persona con un cliente. Solo cambian las que
-// están pendientes y sin horas puestas a mano; las cobradas, en Sindri, facturadas o a mano siguen
-// igual.
-async function recalcularHoras(autor, clienteId) {
-  const cfg = await config();
-  const filas = await consulta(
-    `SELECT id, minutos, horas, horas_manual, tarifa, pago_id, sindri_pedido FROM ha_trabajo
-      WHERE tipo = 'TIEMPO' AND estado <> 'NO_COBRAR' AND cliente_id = ? AND autor <=> ?`,
-    [Number(clienteId), autor || null]);
-  if (!filas.length) return 0;
-  const ocupados = await trabajosOcupados();
-  let cambiadas = 0;
-  for (const t of filas) {
-    if (t.pago_id || t.sindri_pedido || t.horas_manual != null || ocupados.has(Number(t.id))) continue;
-    const horas = horasFacturables(t.minutos, cfg);
-    if (Number(t.horas) === horas) continue;
-    await consulta(
-      'UPDATE ha_trabajo SET horas = ?, importe = ? WHERE id = ? AND pago_id IS NULL AND sindri_pedido IS NULL',
-      [horas, redondear(horas * Number(t.tarifa)), t.id]);
-    cambiadas++;
-  }
-  return cambiadas;
-}
-
-// Todas las pendientes, al arrancar y al guardar Ajustes.
-async function recalcularTodas() {
-  const grupos = await consulta(
-    `SELECT DISTINCT autor, cliente_id FROM ha_trabajo
-      WHERE tipo = 'TIEMPO' AND pago_id IS NULL AND sindri_pedido IS NULL`);
-  let cambiadas = 0;
-  for (const g of grupos) cambiadas += await recalcularHoras(g.autor, g.cliente_id);
-  return cambiadas;
 }
 
 function tarifaDe(cliente, cfg) {
@@ -591,7 +558,7 @@ async function trabajosOcupados() {
 }
 
 module.exports = {
-  config, configGuardar, horasFacturables, horasPorMinutos, recalcularHoras, recalcularTodas,
+  config, configGuardar, horasFacturables, horasPorMinutos,
   clientes, clienteGuardar, clientePorId, COMPARTIBLE,
   cobroMarcar, cobroDeshacer,
   trabajoDeTiempo, trabajoEditar, tramoValido, MAX_SESION_MIN, gastoCrear, trabajos, resumen, trabajoEstado, trabajosOcupados,

@@ -132,13 +132,6 @@ async function arrancar() {
   }
 
   await require('./src/migrar-mantis').alArrancar();
-  // Las horas pendientes, con la regla de ahora: por hora empezada (src/facturacion.js).
-  try {
-    const cambiadas = await require('./src/facturacion').recalcularTodas();
-    if (cambiadas) console.log('Horas: ' + cambiadas + ' sesiones pendientes recalculadas');
-  } catch (e) {
-    console.error('Horas: no se han podido recalcular las pendientes: ' + e.message);
-  }
   await auth.asegurarAdmin();
   await auth.asegurarEmailAdmin();
 
