@@ -639,7 +639,7 @@ function sesionAbrir(id, lista) {
   if (!t) return;
   sesionEditando = { id: t.id, desdeHoras: Boolean(lista) };
   document.getElementById('dialogoSesionTitulo').textContent = 'Corregir sesión';
-  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos. Si se pisa con otra sesión de la misma jornada, las franjas que ya cobra la otra no se cobran dos veces. Deja «Horas a cobrar» vacío para que las calcule Odin.';
+  document.getElementById('dialogoSesionAyuda').textContent = 'El tiempo, las horas facturables y el importe se recalculan solos: cada hora empezada se cobra entera (de 1 a 59 min, 1 h; de 60 a 119 min, 2 h). Deja «Horas a cobrar» vacío para que las calcule Odin.';
   sesionDialogo(t.inicio, t.fin, t.detalle);
   // Si se le pusieron horas a mano, se muestran; si no, queda en automático.
   document.getElementById('sesHoras').value = t.horasManual != null ? String(Number(t.horasManual)) : '';
@@ -652,20 +652,9 @@ let sesionCfg = null;
 function sesionHorasAuto(inicio, fin) {
   const cfg = sesionCfg || {};
   const minimas = Number(cfg.HORAS_MINIMAS || 1);
-  const a = new Date(inicio).getTime();
-  const b = new Date(fin).getTime();
-  if (String(cfg.COBRO_POR || 'FRANJAS').toUpperCase() !== 'FRANJAS') return Math.max(minimas, Math.ceil(Math.round((b - a) / 60000) / 60));
-  const primera = Math.floor(a / 3600000);
-  const ultima = Math.floor((b - 1) / 3600000);
-  const desde = Number(cfg.HORARIO_DESDE);
-  const hasta = Number(cfg.HORARIO_HASTA);
-  const f = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', hourCycle: 'h23' });
-  let fuera = false;
-  for (let h = primera; h <= ultima && hasta > desde && !fuera; h++) {
-    const hora = Number(f.format(new Date(h * 3600000)));
-    fuera = hora < desde || hora >= hasta;
-  }
-  return Math.max(minimas, (ultima - primera + 1) + (fuera ? Math.max(0, Number(cfg.RECARGO_HORAS) || 0) : 0));
+  const minutos = Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 60000);
+  // Por hora empezada: 1-59 min = 1 h, 60-119 min = 2 h…
+  return Math.max(minimas, minutos > 0 ? Math.floor(minutos / 60) + 1 : 0);
 }
 
 function sesionNueva() {
