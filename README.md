@@ -342,3 +342,23 @@ scripts/seed.php     datos iniciales: proyecto, categorías y usuario de pruebas
 docker/web/          imagen PHP 8.3 + Apache con el núcleo oficial
 docker-compose.yml   web, base de datos y correo de pruebas
 ```
+
+## Llaves de agente (`oda_…`)
+
+Para que un programa, por ejemplo un hilo de Claude, use la API de Odin **como la persona que crea
+la llave**, sin su contraseña ni Keycloak (`portal/src/agente.js`, tabla `ha_llave_agente`).
+
+1. **Ajustes → Llaves de agente → Crear llave**: quién la usa (`claude`), qué puede (**Consultar** o
+   **Consultar y cambiar**) y cuándo caduca (por defecto, nunca). Se ve una vez; solo queda su sha256.
+2. Se manda como `Authorization: Bearer oda_…` a `/<ruta>/api/…`. Para Claude en la nube va como
+   secreto del entorno (lo inyecta el proxy); nunca en un chat ni en un repo.
+
+- Ve y hace lo mismo que esa persona (sus incidencias, sus horas, lo que le comparten). Las notas
+  salen con su usuario.
+- **Consultar**: solo `GET`. **Nunca**: la cuenta (correo, contraseña), las llaves de agente ni las
+  conexiones con Sindri o Tareas (`403`).
+- «Revocar» la deja sin valor al momento (`401`).
+
+Lo propio del agente, en `/api/agente/`: `GET yo`, `GET rutas`, `GET traspaso` (instrucciones en
+Markdown con las rutas que puede usar) y `POST mcp` (servidor MCP sin estado: `odin_yo`,
+`odin_rutas`, `odin_consultar`, `odin_cambiar`).

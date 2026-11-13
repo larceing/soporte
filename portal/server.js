@@ -97,6 +97,8 @@ app.post('/api/recuperar', (req, res, next) => auth.pedirRecuperacion(req, res).
 app.post('/api/restablecer', (req, res, next) => auth.restablecer(req, res).catch(next));
 app.post('/api/logout', (req, res, next) => auth.cerrarSesion(req, res).catch(next));
 
+// Lo propio de las llaves de agente (yo, rutas, traspaso, MCP): src/agente.js.
+app.use('/api/agente', (req, res, next) => auth.requiereSesion(req, res, next).catch(next), require('./src/agente').router(api));
 app.use('/api', (req, res, next) => auth.requiereSesion(req, res, next).catch(next), api);
 
 app.use('/js', (req, res, next) => auth.requiereSesionPagina(req, res, next).catch(next),

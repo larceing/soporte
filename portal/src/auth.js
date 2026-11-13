@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { consulta } = require('./db');
 const correo = require('./correo');
 const sso = require('./sso');
+const agente = require('./agente');
 
 const COOKIE = 'ha_sesion';
 const DIAS_SESION = 30;
@@ -342,6 +343,14 @@ async function usuarioDeSesion(req) {
 
 // Para la API: sin sesión responde 401.
 async function requiereSesion(req, res, next) {
+  // Llave de agente (oda_…, src/agente.js): trabaja como quien la creó, sin cookie.
+  const a = await agente.comprobar(req);
+  if (!a.nada) {
+    if (a.error) return res.status(a.status).json({ error: a.error });
+    req.usuario = a.usuario;
+    req.agente = a.agente;
+    return next();
+  }
   req.usuario = await usuarioDeSesion(req);
   if (!req.usuario) return res.status(401).json({ error: 'Sesión no iniciada.' });
   next();

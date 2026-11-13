@@ -7,6 +7,7 @@ const resumen = require('./resumen');
 const correo = require('./correo');
 const sindri = require('./sindri');
 const tareas = require('./tareas');
+const agente = require('./agente');
 const { ErrorUsuario, texto, ruta, esDia } = require('./util');
 
 const router = express.Router();
@@ -380,6 +381,20 @@ router.get('/correo/enviados', ruta(async (req, res) => {
        FROM ha_correo WHERE usuario_id = ? ORDER BY id DESC LIMIT 100`,
     [req.usuario.id]
   ));
+}));
+
+/* Llaves de agente: cada persona, las suyas (con una llave de agente no se llega aquí). */
+
+router.get('/llaves-agente', ruta(async (req, res) => {
+  res.json(await agente.listar(req.usuario.id));
+}));
+
+router.post('/llaves-agente', ruta(async (req, res) => {
+  res.status(201).json(await agente.crear(req.usuario.id, req.body || {}));
+}));
+
+router.post('/llaves-agente/:id/revocar', ruta(async (req, res) => {
+  res.json(await agente.revocar(req.usuario.id, req.params.id));
 }));
 
 /* Ajustes */

@@ -280,6 +280,7 @@ async function ajustesCargar() {
     : 'El envío de correo no está configurado en este servidor: no se enviará nada.';
 
   sindriCargar();
+  agenteCargar();
   horasPermisosCargar();
   tareasCargar();
 
@@ -470,6 +471,50 @@ async function sindriQuitar() {
     coreMensaje('mensajeSindri', 'Llave quitada: ya no se envía nada.', 'ok');
   } catch (err) {
     coreMensaje('mensajeSindri', err.message, 'error');
+  }
+}
+
+/* Llaves de agente */
+
+function agentePintar(lista) {
+  const fecha = function(iso) { return iso ? new Date(iso).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'Nunca'; };
+  const el = document.getElementById('agenteLista');
+  if (!lista.length) { el.innerHTML = '<p class="det-desc">Ninguna llave de agente todavía.</p>'; return; }
+  el.innerHTML = '<div class="cobro-tabla-wrap"><table class="cobro-tabla"><thead><tr><th>Quién</th><th>Puede</th><th>Llave</th><th>Caduca</th><th>Último uso</th><th>Estado</th><th></th></tr></thead><tbody>' +
+    lista.map(function(k) {
+      const caducada = k.caduca && new Date(k.caduca) < new Date();
+      return '<tr><td>' + esc(k.nombre) + '</td><td>' + (k.nivel === 'cambiar' ? 'Consultar y cambiar' : 'Consultar') + '</td><td><code>…' + esc(k.final) +
+        '</code></td><td>' + fecha(k.caduca) + '</td><td>' + fecha(k.usada) + '</td><td>' + (k.revocada ? 'Revocada' : caducada ? 'Caducada' : 'Activa') + '</td><td>' +
+        (k.revocada ? '' : '<button type="button" class="btn btn-secondary btn-sm" onclick="agenteRevocar(' + Number(k.id) + ')">Revocar</button>') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+async function agenteCargar() {
+  try { agentePintar(await api('GET', '/llaves-agente')); } catch (err) { coreMensaje('mensajeAgente', err.message, 'error'); }
+}
+
+async function agenteCrear() {
+  try {
+    const r = await api('POST', '/llaves-agente', {
+      nombre: document.getElementById('agenteNombre').value,
+      nivel: document.getElementById('agenteNivel').value,
+      dias: document.getElementById('agenteDias').value || null
+    });
+    coreMensaje('mensajeAgente', 'Llave de agente «' + r.nombre + '»: ' + r.llave + ' . Cópiala ahora donde vaya a usarse (para Claude, en el secreto del entorno): no se vuelve a enseñar.', 'ok');
+    agenteCargar();
+  } catch (err) {
+    coreMensaje('mensajeAgente', err.message, 'error');
+  }
+}
+
+async function agenteRevocar(id) {
+  if (!confirm('¿Revocar esta llave de agente? Deja de valer al momento.')) return;
+  try {
+    await api('POST', '/llaves-agente/' + id + '/revocar', {});
+    coreMensaje('mensajeAgente', 'Llave revocada.', 'ok');
+    agenteCargar();
+  } catch (err) {
+    coreMensaje('mensajeAgente', err.message, 'error');
   }
 }
 

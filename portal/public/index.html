@@ -449,6 +449,24 @@
           </div>
 
           <div class="panel">
+            <h3>Llaves de agente</h3>
+            <p class="det-desc">Para que un programa (por ejemplo Claude) use Odin como tú, sin tu contraseña: ve y hace lo mismo que tú. «Consultar» solo lee; «Consultar y cambiar» también cambia. Nunca toca tu cuenta ni las llaves. Va como <code>Authorization: Bearer oda_…</code>. Se ve una sola vez: no la pegues en un chat.</p>
+
+            <div class="grid grid-3">
+              <div class="field"><label for="agenteNombre">Quién la usa</label><input id="agenteNombre" type="text" value="claude" autocomplete="off"></div>
+              <div class="field"><label for="agenteNivel">Puede</label><select id="agenteNivel"><option value="cambiar">Consultar y cambiar</option><option value="consultar">Consultar</option></select></div>
+              <div class="field"><label for="agenteDias">Caduca</label><select id="agenteDias"><option value="">Nunca</option><option value="30">En 30 días</option><option value="90">En 90 días</option><option value="365">En un año</option></select></div>
+            </div>
+
+            <div class="actions">
+              <button type="button" class="btn btn-primary" onclick="agenteCrear()">Crear llave</button>
+            </div>
+
+            <div id="mensajeAgente" class="message hidden"></div>
+            <div id="agenteLista"></div>
+          </div>
+
+          <div class="panel">
             <h3>Correo y avisos</h3>
 
             <div class="grid">
